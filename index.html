@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>屏幕共享室 · 轻量 LAN</title>
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+  <style>
+    :root {
+      --bg-primary: #1a1c20;
+      --bg-secondary: #23262a;
+      --bg-tertiary: #2c2f35;
+      --text-primary: #e4e6ea;
+      --text-secondary: #9ea2ab;
+      --brand: #5865f2;
+      --brand-hover: #4752c4;
+      --green: #3ba55c;
+      --red: #ed4245;
+      --border: #3e4147;
+      --radius: 6px;
+      --shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Segoe UI', 'Noto Sans', 'Helvetica Neue', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* 左侧成员面板 */
+    .members-panel {
+      width: 240px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .members-header {
+      padding: 16px;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+      border-bottom: 1px solid var(--border);
+    }
+    .members-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .member-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      margin-bottom: 2px;
+      transition: background 0.15s;
+    }
+    .member-item:hover { background: rgba(255,255,255,0.04); }
+    .member-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .member-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .member-name {
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+    }
+    .member-name:hover { text-decoration: underline; }
+    .member-status {
+      font-size: 12px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      flex-shrink: 0;
+    }
+    .status-dot.sharing { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    /* 右侧主内容区 */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* 顶部工具栏 */
+    .toolbar {
+      height: 52px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .connection-info {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .connection-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+    }
+    .connection-dot.online { background: var(--green); }
+    .btn {
+      background: var(--brand);
+      border: none;
+      color: white;
+      padding: 6px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--brand-hover); }
+    .btn.danger { background: var(--red); }
+    .btn.danger:hover { background: #c03537; }
+    .btn:disabled { opacity: 0.5; pointer-events: none; }
+    .server-input {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      width: 140px;
+      outline: none;
+    }
+    .server-input:focus { border-color: var(--brand); }
+
+    /* 视频区域 */
+    .video-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;          /* 关键：防止被内容撑开 */
+      overflow: hidden;       /* 防止溢出 */
+      background: var(--bg-primary);
+    }
+    .thumbnails-bar {
+      display: flex;
+      gap: 10px;
+      padding: 12px;
+      overflow-x: auto;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      min-height: 60px;
+      flex-shrink: 0;
+    }
+    .thumbnails-bar:empty { display: none; }
+    .thumbnail {
+      width: 150px;
+      height: 84px;
+      flex-shrink: 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: 0.15s;
+      position: relative;
+      background: #000;
+    }
+    .thumbnail.active { border-color: var(--brand); }
+    .thumbnail video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+    .thumbnail-label {
+      position: absolute;
+      bottom: 4px;
+      left: 4px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      pointer-events: none;
+    }
+    .main-video-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      position: relative;
+      min-height: 0;          /* 关键：让 flex 子项能够收缩 */
+      overflow: hidden;
+    }
+    .main-video-wrapper video {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .no-video-message {
+      color: var(--text-secondary);
+      font-size: 16px;
+      text-align: center;
+      position: absolute;
+    }
+
+    /* Plyr 全屏适配 */
+    .plyr--video { height: 100%; }
+
+    @media (max-width: 800px) {
+      .members-panel { width: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 左侧成员列表 -->
+  <div class="members-panel">
+    <div class="members-header">
+      👥 成员 · <span id="memberCount">0</span>
+    </div>
+    <div class="members-list" id="memberList"></div>
+  </div>
+
+  <!-- 右侧主界面 -->
+  <div class="main-content">
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <div class="connection-info" id="connectionInfo">
+        <span class="connection-dot" id="connDot"></span>
+        <span id="connStatus">未连接</span>
+      </div>
+      <input type="text" class="server-input" id="serverHostInput" placeholder="信令服务器IP" value="localhost">
+      <button class="btn" id="connectBtn">🔗 连接</button>
+      <button class="btn danger" id="disconnectBtn" disabled>⏹️ 断开</button>
+      <button class="btn" id="shareBtn" disabled>📤 分享屏幕</button>
+    </div>
+
+    <!-- 视频区域 -->
+    <div class="video-container">
+      <div class="thumbnails-bar" id="thumbnailsBar"></div>
+      <div class="main-video-wrapper" id="mainVideoWrapper">
+        <div class="no-video-message" id="noVideoMsg">等待屏幕共享…</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+  <script>
+    (() => {
+      // ----- 固定房间名（全局公共房间）-----
+      const ROOM_NAME = 'screen-share';
+
+      // ----- DOM 元素 -----
+      const serverHostInput = document.getElementById('serverHostInput');
+      const connectBtn = document.getElementById('connectBtn');
+      const disconnectBtn = document.getElementById('disconnectBtn');
+      const shareBtn = document.getElementById('shareBtn');
+      const connDot = document.getElementById('connDot');
+      const connStatus = document.getElementById('connStatus');
+      const memberList = document.getElementById('memberList');
+      const memberCount = document.getElementById('memberCount');
+      const thumbnailsBar = document.getElementById('thumbnailsBar');
+      const mainVideoWrapper = document.getElementById('mainVideoWrapper');
+      const noVideoMsg = document.getElementById('noVideoMsg');
+
+      // ----- 状态变量 -----
+      let ws = null;
+      let myPeerId = null;
+      let myDeviceName = '我的设备';
+      let localScreenStream = null;
+      let isSharing = false;
+      let activeMainPeerId = null;      // 当前主画面显示的远程 peerId
+
+      // peers Map: peerId -> { sharing, stream, pc, videoEl, player }
+      const peers = new Map();
+
+      // ----- Plyr 配置 -----
+      const plyrOptions = {
+        controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen', 'pip'],
+        pip: true,
+        fullscreen: { enabled: true, fallback: true },
+        autoplay: true,
+        muted: false,
+      };
+
+      // ----- 辅助函数：生成默认设备名 -----
+      function getDefaultDeviceName() {
+        const ua = navigator.userAgent;
+        let browser = '浏览器';
+        if (ua.includes('Chrome')) browser = 'Chrome';
+        else if (ua.includes('Firefox')) browser = 'Firefox';
+        else if (ua.includes('Edge')) browser = 'Edge';
+        let os = '';
+        if (ua.includes('Windows')) os = 'Windows';
+        else if (ua.includes('Mac')) os = 'Mac';
+        else if (ua.includes('Linux')) os = 'Linux';
+        return os ? `${browser} on ${os}` : browser;
+      }
+
+      // 更新连接状态 UI
+      function setConnected(connected, serverIp = '') {
+        if (connected) {
+          connDot.className = 'connection-dot online';
+          connStatus.textContent = `已连接至 ${serverIp}`;
+          connectBtn.disabled = true;
+          disconnectBtn.disabled = false;
+          shareBtn.disabled = false;
+        } else {
+          connDot.className = 'connection-dot';
+          connStatus.textContent = '未连接';
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          shareBtn.disabled = true;
+          // 停止共享
+          if (isSharing) stopScreenShare();
+          // 清理所有远程连接
+          clearAllPeers();
+        }
+      }
+
+      // 成员列表渲染
+      function renderMembers() {
+        const members = [];
+        peers.forEach((data, pid) => {
+          members.push({
+            peerId: pid,
+            sharing: data.sharing || false,
+            isSelf: pid === myPeerId,
+            name: pid === myPeerId ? myDeviceName : (data.displayName || pid),
+          });
+        });
+        // 排序：自己排第一
+        members.sort((a, b) => (a.isSelf ? -1 : b.isSelf ? 1 : 0));
+
+        memberCount.textContent = members.length;
+        memberList.innerHTML = members.map(m => `
+          <div class="member-item">
+            <div class="member-avatar" style="background:${m.isSelf ? '#5865f2' : '#3ba55c'}">${m.name.slice(0,2).toUpperCase()}</div>
+            <div class="member-info">
+              <div class="member-name" title="${m.isSelf ? '点击修改名称' : ''}" data-peer-id="${m.peerId}">
+                ${m.name}
+              </div>
+              <div class="member-status">${m.sharing ? '正在共享' : '在线'}</div>
+            </div>
+            <span class="status-dot ${m.sharing ? 'sharing' : ''}"></span>
+          </div>
+        `).join('');
+
+        // 绑定自己名字的编辑事件
+        if (myPeerId) {
+          const selfNameEl = document.querySelector(`.member-name[data-peer-id="${myPeerId}"]`);
+          if (selfNameEl) {
+            selfNameEl.addEventListener('dblclick', () => {
+              const newName = prompt('修改你的设备名称', myDeviceName);
+              if (newName && newName.trim()) {
+                myDeviceName = newName.trim();
+                renderMembers();
+              }
+            });
+          }
+        }
+      }
+
+      // ----- 视频布局管理 -----
+      function clearVideoUI() {
+        thumbnailsBar.innerHTML = '';
+        mainVideoWrapper.innerHTML = '';
+        noVideoMsg.style.display = 'flex';
+        activeMainPeerId = null;
+      }
+
+      // 根据 peers 中的远程流重新构建视频 UI
+      function refreshVideoLayout() {
+        // 获取所有有视频流的远程 peer
+        const remotePeers = [];
+        peers.forEach((data, pid) => {
+          if (pid !== myPeerId && data.stream && data.videoEl) {
+            remotePeers.push({ peerId: pid, ...data });
+          }
+        });
+
+        if (remotePeers.length === 0) {
+          clearVideoUI();
+          return;
+        }
+
+        // 隐藏无视频提示
+        noVideoMsg.style.display = 'none';
+
+        // 确保 activeMainPeerId 仍在列表中
+        if (!activeMainPeerId || !remotePeers.find(p => p.peerId === activeMainPeerId)) {
+          activeMainPeerId = remotePeers[0].peerId;
+        }
+
+        // 1. 构建缩略图条
+        thumbnailsBar.innerHTML = '';
+        remotePeers.forEach(peer => {
+          const thumbDiv = document.createElement('div');
+          thumbDiv.className = `thumbnail ${peer.peerId === activeMainPeerId ? 'active' : ''}`;
+          thumbDiv.dataset.peerId = peer.peerId;
+
+          // 复用 video 元素，但每个流一个 video 标签。我们直接移动原 videoEl 到缩略图，但 Plyr 需重新挂载。
+          // 简便做法：创建新的 <video> 并克隆流
+          const thumbVideo = document.createElement('video');
+          thumbVideo.srcObject = peer.stream;
+          thumbVideo.autoplay = true;
+          thumbVideo.muted = true;
+          thumbVideo.playsInline = true;
+          thumbDiv.appendChild(thumbVideo);
+
+          const label = document.createElement('div');
+          label.className = 'thumbnail-label';
+          label.textContent = peer.displayName || peer.peerId;
+          thumbDiv.appendChild(label);
+
+          thumbDiv.addEventListener('click', () => {
+            activeMainPeerId = peer.peerId;
+            refreshVideoLayout();
+          });
+
+          thumbnailsBar.appendChild(thumbDiv);
+        });
+
+        // 2. 设置主画面
+        const mainPeer = remotePeers.find(p => p.peerId === activeMainPeerId);
+        if (mainPeer) {
+          // 如果主画面已有 Plyr 实例，先销毁再重建
+          mainVideoWrapper.innerHTML = '';
+          const mainVideo = document.createElement('video');
+          mainVideo.srcObject = mainPeer.stream;
+          mainVideo.autoplay = true;
+          mainVideo.playsInline = true;
+          mainVideoWrapper.appendChild(mainVideo);
+          new Plyr(mainVideo, plyrOptions);
+        }
+      }
+
+      // 添加或更新远程视频流
+      function setRemoteStream(peerId, stream) {
+        const peer = peers.get(peerId);
+        if (!peer) return;
+        peer.stream = stream;
+        // 视频元素不提前创建，由 refreshVideoLayout 管理
+        if (!peer.videoEl) {
+          // 创建一个隐藏的 video 元素用于持有流，但不插入 DOM（refreshVideoLayout 会使用）
+          const v = document.createElement('video');
+          v.srcObject = stream;
+          v.autoplay = true;
+          v.muted = true;
+          v.playsInline = true;
+          peer.videoEl = v; // 保存引用，但布局重建时会从 stream 重新生成
+        }
+        refreshVideoLayout();
+      }
+
+      function removeRemoteStream(peerId) {
+        const peer = peers.get(peerId);
+        if (peer) {
+          if (peer.stream) {
+            peer.stream.getTracks().forEach(t => t.stop());
+            peer.stream = null;
+          }
+          if (peer.pc) {
+            peer.pc.close();
+            peer.pc = null;
+          }
+          peer.sharing = false;
+        }
+        if (activeMainPeerId === peerId) {
+          activeMainPeerId = null;
+        }
+        refreshVideoLayout();
+        renderMembers();
+      }
+
+      function clearAllPeers() {
+        peers.forEach((peer, pid) => {
+          if (pid !== myPeerId) {
+            if (peer.pc) peer.pc.close();
+            if (peer.stream) peer.stream.getTracks().forEach(t => t.stop());
+          }
+        });
+        peers.clear();
+        clearVideoUI();
+        renderMembers();
+      }
+
+      // ----- WebRTC 逻辑 -----
+      function createPeerConnection(targetPeerId) {
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+          iceCandidatePoolSize: 1,
+        });
+        pc.onicecandidate = (e) => {
+          if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ice-candidate', target: targetPeerId, candidate: e.candidate }));
+          }
+        };
+        pc.ontrack = (event) => {
+          if (event.streams && event.streams[0]) {
+            setRemoteStream(targetPeerId, event.streams[0]);
+            // 更新该peer为共享状态
+            const peer = peers.get(targetPeerId);
+            if (peer) {
+              peer.sharing = true;
+              renderMembers();
+            }
+          }
+        };
+        pc.oniceconnectionstatechange = () => {
+          if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+            removeRemoteStream(targetPeerId);
+          }
+        };
+        return pc;
+      }
+
+      async function handleOffer(senderId, sdp) {
+        let peer = peers.get(senderId);
+        if (!peer) {
+          peer = { sharing: true };
+          peers.set(senderId, peer);
+        }
+        if (peer.pc) peer.pc.close();
+        const pc = createPeerConnection(senderId);
+        peer.pc = pc;
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ type: 'answer', target: senderId, sdp: pc.localDescription.sdp }));
+      }
+
+      async function initiateShareWithPeer(targetPeerId) {
+        if (!localScreenStream) return;
+        let peer = peers.get(targetPeerId);
+        if (!peer) {
+          peer = { sharing: false };
+          peers.set(targetPeerId, peer);
+        }
+        if (peer.pc) peer.pc.close();
+        const pc = createPeerConnection(targetPeerId);
+        peer.pc = pc;
+        localScreenStream.getTracks().forEach(track => pc.addTrack(track, localScreenStream));
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: 'offer', target: targetPeerId, sdp: pc.localDescription.sdp }));
+      }
+
+      async function startScreenShare() {
+        try {
+          localScreenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { mediaSource: 'screen', width: { ideal: 1920 }, height: { ideal: 1080 } },
+            audio: true,
+          });
+          isSharing = true;
+          ws.send(JSON.stringify({ type: 'share-start' }));
+          // 向所有已知远程 peer 发起连接
+          peers.forEach((peer, pid) => {
+            if (pid !== myPeerId) {
+              initiateShareWithPeer(pid);
+            }
+          });
+          localScreenStream.getVideoTracks()[0].addEventListener('ended', () => {
+            stopScreenShare();
+          });
+          renderMembers();
+        } catch (err) {
+          alert('屏幕共享权限获取失败: ' + err.message);
+        }
+      }
+
+      function stopScreenShare() {
+        if (localScreenStream) {
+          localScreenStream.getTracks().forEach(t => t.stop());
+          localScreenStream = null;
+        }
+        isSharing = false;
+        ws.send(JSON.stringify({ type: 'share-stop' }));
+        // 关闭所有发起的连接
+        peers.forEach((peer, pid) => {
+          if (pid !== myPeerId && peer.pc) {
+            peer.pc.close();
+            peer.pc = null;
+          }
+        });
+        renderMembers();
+      }
+
+      // ----- 信令处理 -----
+      function handleMessage(msg) {
+        switch (msg.type) {
+          case 'room-joined':
+            myPeerId = msg.peerId;
+            // 清空旧的peers，但保留自己（稍后设置）
+            peers.clear();
+            myDeviceName = getDefaultDeviceName();
+            // 添加现有成员
+            msg.members.forEach(m => {
+              if (m.peerId !== myPeerId) {
+                peers.set(m.peerId, { sharing: m.isSharing, displayName: m.peerId });
+              }
+            });
+            // 添加自己
+            peers.set(myPeerId, { sharing: false, displayName: myDeviceName });
+            setConnected(true, serverHostInput.value.trim());
+            renderMembers();
+            break;
+
+          case 'peer-joined':
+            if (msg.peerId !== myPeerId) {
+              if (!peers.has(msg.peerId)) {
+                peers.set(msg.peerId, { sharing: false, displayName: msg.peerId });
+              }
+              renderMembers();
+              // 如果自己正在共享，主动发起连接
+              if (isSharing && localScreenStream) {
+                initiateShareWithPeer(msg.peerId);
+              }
+            }
+            break;
+
+          case 'peer-left':
+            if (msg.peerId !== myPeerId) {
+              removeRemoteStream(msg.peerId);
+              peers.delete(msg.peerId);
+              renderMembers();
+            }
+            break;
+
+          case 'peer-share-start':
+          case 'member-update':
+            if (msg.peerId !== myPeerId) {
+              const peer = peers.get(msg.peerId);
+              if (peer) peer.sharing = msg.isSharing !== false;
+              renderMembers();
+            }
+            break;
+
+          case 'peer-share-stop':
+            if (msg.peerId !== myPeerId) {
+              removeRemoteStream(msg.peerId);
+              renderMembers();
+            }
+            break;
+
+          case 'offer':
+            if (msg.sender !== myPeerId) {
+              handleOffer(msg.sender, msg.sdp);
+            }
+            break;
+
+          case 'answer':
+            if (msg.sender !== myPeerId) {
+              const peer = peers.get(msg.sender);
+              if (peer && peer.pc) {
+                peer.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: msg.sdp }));
+              }
+            }
+            break;
+
+          case 'ice-candidate':
+            if (msg.sender !== myPeerId && msg.candidate) {
+              const peer = peers.get(msg.sender);
+              if (peer && peer.pc) {
+                peer.pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(console.warn);
+              }
+            }
+            break;
+        }
+      }
+
+      // ----- 连接管理 -----
+      function connectToServer() {
+        const ip = serverHostInput.value.trim();
+        if (!ip) return alert('请输入信令服务器地址');
+        const wsUrl = `ws://${ip}:3000`;
+
+        if (ws) ws.close();
+
+        try {
+          ws = new WebSocket(wsUrl);
+        } catch (e) {
+          alert('连接失败: ' + e.message);
+          return;
+        }
+
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: 'join', room: ROOM_NAME }));
+        };
+
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            handleMessage(msg);
+          } catch (err) {}
+        };
+
+        ws.onclose = () => {
+          setConnected(false);
+          clearAllPeers();
+          myPeerId = null;
+        };
+
+        ws.onerror = () => {
+          alert('WebSocket 连接错误，请检查服务器是否启动，地址: ' + wsUrl);
+        };
+      }
+
+      function disconnect() {
+        if (ws) {
+          ws.close();
+        }
+      }
+
+      // ----- 事件绑定 -----
+      connectBtn.addEventListener('click', connectToServer);
+      disconnectBtn.addEventListener('click', disconnect);
+      shareBtn.addEventListener('click', startScreenShare);
+      serverHostInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') connectToServer();
+      });
+
+      // 初始 UI
+      setConnected(false);
+      clearVideoUI();
+      renderMembers();
+    })();
+  </script>
+</body>
+</html>
