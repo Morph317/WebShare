@@ -182,7 +182,7 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
     }
   }
 
-  async function stopSharing(): void {
+  async function stopSharing(): Promise<void> {
     if (localStream.value) {
       localStream.value.getTracks().forEach((t) => t.stop());
       localStream.value = null;

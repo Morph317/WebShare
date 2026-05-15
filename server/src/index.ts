@@ -84,16 +84,8 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
         );
         peer.producerTransport = transport;
 
-        transport.on('close', () => {
+        transport.on('@close', () => {
           peer.producerTransport = null;
-        });
-
-        transport.on('connect', ({ dtlsParameters }, callback, errback) => {
-          try {
-            callback();
-          } catch (err) {
-            errback(err as Error);
-          }
         });
 
         transport.on('dtlsstatechange', (dtlsState) => {
@@ -134,7 +126,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
         const producer = await peer.producerTransport.produce({
           kind: kind as mediasoup.types.MediaKind,
           rtpParameters: rtpParameters as mediasoup.types.RtpParameters,
-          appData,
+          appData: appData as mediasoup.types.AppData,
         });
         peer.producers.set(producer.id, producer);
         peer.isSharing = true;
@@ -155,7 +147,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
           } catch {}
         }, 10000);
 
-        producer.on('close', () => {
+        producer.on('@close', () => {
           console.log(`[producer-closed] peer=${peer.id} producer=${producer.id}`);
           peer.producers.delete(producer.id);
           if (peer.producers.size === 0) {
@@ -187,16 +179,8 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
         );
         peer.consumerTransport = transport;
 
-        transport.on('close', () => {
+        transport.on('@close', () => {
           peer.consumerTransport = null;
-        });
-
-        transport.on('connect', ({ dtlsParameters }, callback, errback) => {
-          try {
-            callback();
-          } catch (err) {
-            errback(err as Error);
-          }
         });
 
         transport.on('dtlsstatechange', (dtlsState) => {
@@ -266,7 +250,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 
         peer.consumers.set(consumer.id, consumer);
 
-        consumer.on('close', () => {
+        consumer.on('@close', () => {
           peer.consumers.delete(consumer.id);
         });
 
@@ -333,7 +317,7 @@ async function main(): Promise<void> {
 
   worker = await mediasoup.createWorker({
     logLevel: config.mediasoup.worker.logLevel,
-    logTags: config.mediasoup.worker.logTags,
+    logTags: config.mediasoup.worker.logTags as mediasoup.types.WorkerLogTag[],
     rtcMinPort: config.mediasoup.worker.rtcMinPort,
     rtcMaxPort: config.mediasoup.worker.rtcMaxPort,
   });
