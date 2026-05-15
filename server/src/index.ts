@@ -1,5 +1,7 @@
 import express from 'express';
 import http from 'node:http';
+import https from 'node:https';
+import fs from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as mediasoup from 'mediasoup';
@@ -337,7 +339,22 @@ async function main(): Promise<void> {
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 
-  const server = http.createServer(app);
+  const certPath = process.env.HTTPS_CERT;
+  const keyPath = process.env.HTTPS_KEY;
+  let server: http.Server | https.Server;
+  if (certPath && keyPath && fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+    server = https.createServer(
+      {
+        cert: fs.readFileSync(certPath),
+        key: fs.readFileSync(keyPath),
+      },
+      app,
+    );
+    console.log('HTTPS enabled');
+  } else {
+    server = http.createServer(app);
+    console.log('HTTP mode (set HTTPS_CERT & HTTPS_KEY env vars for HTTPS)');
+  }
 
   const wss = new WebSocketServer({ server, path: '/ws' });
 

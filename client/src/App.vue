@@ -79,7 +79,8 @@ function getDeviceName(): string {
 
 async function autoConnect(): Promise<void> {
   try {
-    const wsUrl = `ws://${location.host || 'localhost:8080'}/ws`;
+    const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${wsProtocol}://${location.host || 'localhost:8080'}/ws`;
     const roomId = 'screen-share';
     await signaling.connect(wsUrl, roomId, getDeviceName());
     connectedRoomId.value = roomId;

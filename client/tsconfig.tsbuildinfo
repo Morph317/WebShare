@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/types.ts","./src/vite-env.d.ts","./src/composables/usemediasoup.ts","./src/composables/usesignaling.ts","./src/app.vue","./src/components/connectionbar.vue","./src/components/memberspanel.vue","./src/components/videoarea.vue"],"version":"5.6.3"}
