@@ -1,0 +1,13 @@
+{
+  "name": "webshare",
+  "version": "2.0.0",
+  "description": "WebShare - Browser-based screen sharing with SFU (mediasoup)",
+  "private": true,
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build:client": "cd client && npm run build",
+    "start": "cd server && npm run build && npm start"
+  }
+}
