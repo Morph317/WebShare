@@ -339,10 +339,10 @@ async function main(): Promise<void> {
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 
-  const certPath = process.env.HTTPS_CERT;
-  const keyPath = process.env.HTTPS_KEY;
+  const certPath = process.env.HTTPS_CERT || 'cert.crt';
+  const keyPath = process.env.HTTPS_KEY || 'cert.key';
   let server: http.Server | https.Server;
-  if (certPath && keyPath && fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
     server = https.createServer(
       {
         cert: fs.readFileSync(certPath),
@@ -353,7 +353,7 @@ async function main(): Promise<void> {
     console.log('HTTPS enabled');
   } else {
     server = http.createServer(app);
-    console.log('HTTP mode (set HTTPS_CERT & HTTPS_KEY env vars for HTTPS)');
+    console.log('HTTP mode (place cert.crt + cert.key in cwd for HTTPS)');
   }
 
   const wss = new WebSocketServer({ server, path: '/ws' });
