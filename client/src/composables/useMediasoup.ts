@@ -153,7 +153,7 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
         video: {
           width: { ideal: 1920 },
           height: { ideal: 1080 },
-          frameRate: { ideal: 30 },
+          frameRate: { ideal: 60, min: 30 },
         },
         audio: true,
       });
@@ -171,7 +171,12 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
 
       for (const track of stream.getTracks()) {
         console.log('[startSharing] producing track:', track.kind);
-        await transport.produce({ track });
+        await transport.produce({
+          track,
+          encodings: track.kind === 'video'
+            ? [{ maxBitrate: 20000000, scalabilityMode: 'L1T3' }]
+            : undefined,
+        });
         console.log('[startSharing] produced, connectionState:', transport.connectionState, 'iceGatheringState:', transport.iceGatheringState);
       }
 
