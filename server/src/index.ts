@@ -7,11 +7,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import * as mediasoup from 'mediasoup';
 import { config } from './config';
 import { Peer, Room } from './Room';
+import { createWhipHandler } from './Whip';
 
 let worker: mediasoup.types.Worker;
 const rooms: Map<string, Room> = new Map();
 const peerMap: Map<string, Peer> = new Map();
-let nextPeerId = 1;
+const nextPeerId = { value: 1 };
 
 async function initRoom(roomId: string): Promise<Room> {
   let room = rooms.get(roomId);
@@ -333,6 +334,9 @@ async function main(): Promise<void> {
 
   const app = express();
 
+  // WHIP endpoint — raw SDP body, before static middleware
+  app.post('/api/whip', express.raw({ type: '*/*', limit: '64kb' }), createWhipHandler(rooms, peerMap, nextPeerId, worker));
+
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
   app.use(express.static(clientDist));
   app.get('*', (_req, res) => {
@@ -359,7 +363,7 @@ async function main(): Promise<void> {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', (ws: WebSocket) => {
-    const peerId = `peer_${nextPeerId++}`;
+    const peerId = `peer_${nextPeerId.value++}`;
     const peer = new Peer(peerId, '', ws);
     peerMap.set(peerId, peer);
 

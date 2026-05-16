@@ -10,7 +10,7 @@ export interface PeerInfo {
 export class Peer {
   public id: string;
   public displayName: string;
-  public ws: WebSocket;
+  public ws: WebSocket | null;
   public room: Room | null = null;
   public producerTransport: mediasoup.types.WebRtcTransport | null = null;
   public consumerTransport: mediasoup.types.WebRtcTransport | null = null;
@@ -18,14 +18,14 @@ export class Peer {
   public consumers: Map<string, mediasoup.types.Consumer> = new Map();
   public isSharing: boolean = false;
 
-  constructor(id: string, displayName: string, ws: WebSocket) {
+  constructor(id: string, displayName: string, ws: WebSocket | null) {
     this.id = id;
     this.displayName = displayName;
     this.ws = ws;
   }
 
   send(msg: Record<string, unknown>): void {
-    if (this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }
   }
