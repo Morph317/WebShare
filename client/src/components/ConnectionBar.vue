@@ -6,13 +6,16 @@
     </div>
     <div class="connection-info" v-if="state === 'connected'">
       <span class="room-badge">{{ roomId }}</span>
+      <button class="btn btn-copy-whip" @click="copyWhipUrl" :title="whipUrl">
+        {{ copied ? '已复制!' : '复制 WHIP 地址' }}
+      </button>
       <button class="btn btn-disconnect" @click="$emit('disconnect')">断开</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{
   state: 'disconnected' | 'connecting' | 'connected';
@@ -22,6 +25,33 @@ const props = defineProps<{
 defineEmits<{
   disconnect: [];
 }>();
+
+const copied = ref(false);
+
+const whipUrl = computed(() => {
+  const host = window.location.hostname;
+  return `http://${host}:8080/api/whip?roomId=${props.roomId}`;
+});
+
+async function copyWhipUrl(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(whipUrl.value);
+    copied.value = true;
+    setTimeout(() => { copied.value = false; }, 2000);
+  } catch {
+    // Fallback for non-HTTPS
+    const ta = document.createElement('textarea');
+    ta.value = whipUrl.value;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    copied.value = true;
+    setTimeout(() => { copied.value = false; }, 2000);
+  }
+}
 
 const statusClass = computed(() => {
   if (props.state === 'connected') return 'connected';
@@ -120,6 +150,14 @@ input::placeholder {
 }
 .btn-disconnect:hover {
   background: rgba(244, 67, 54, 0.35);
+}
+.btn-copy-whip {
+  background: rgba(76, 175, 80, 0.2);
+  color: #81c784;
+  font-size: 12px;
+}
+.btn-copy-whip:hover {
+  background: rgba(76, 175, 80, 0.35);
 }
 .room-badge {
   font-size: 12px;

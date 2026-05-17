@@ -81,7 +81,7 @@ async function autoConnect(): Promise<void> {
   try {
     const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
     const wsUrl = `${wsProtocol}://${location.host || 'localhost:8080'}/ws`;
-    const roomId = 'screen-share';
+    const roomId = (new URLSearchParams(location.search).get('roomId')) || 'default';
     await signaling.connect(wsUrl, roomId, getDeviceName());
     connectedRoomId.value = roomId;
     await initDevice();

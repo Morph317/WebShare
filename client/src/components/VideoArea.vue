@@ -24,9 +24,9 @@
     </div>
 
     <!-- Thumbnails bar -->
-    <div class="thumbnails-bar" v-if="remoteStreams.size > 0">
+    <div class="thumbnails-bar" v-if="videoStreams.size > 0">
       <div
-        v-for="[producerId, rs] in remoteStreams"
+        v-for="[producerId, rs] in videoStreams"
         :key="producerId"
         class="thumbnail"
         :class="{ active: activeStreamId === producerId }"
@@ -49,7 +49,6 @@
         <video
           ref="mainVideoRef"
           autoplay
-          muted
           playsinline
           controls
           class="main-video"
@@ -110,6 +109,20 @@ const activeStream = computed(() => {
   return props.remoteStreams.get(props.activeStreamId) || null;
 });
 
+// Only show streams with video tracks in thumbnails, deduplicated by peer
+const videoStreams = computed(() => {
+  const seen = new Set<string>();
+  const filtered = new Map<string, RemoteStream>();
+  for (const [id, rs] of props.remoteStreams) {
+    if (rs.kind === 'audio') continue;
+    // Deduplicate: if we already have this peer's stream, keep the one with more tracks
+    if (seen.has(rs.peerId)) continue;
+    seen.add(rs.peerId);
+    filtered.set(id, rs);
+  }
+  return filtered;
+});
+
 function setActiveStream(producerId: string): void {
   emit('setActiveStream', producerId);
 }
@@ -141,7 +154,7 @@ watch(activeStream, (stream) => {
   if (mainVideoRef.value && stream) {
     console.log('[VideoArea] setting main video srcObject, tracks:', stream.stream.getTracks().length);
     mainVideoRef.value.srcObject = stream.stream;
-    mainVideoRef.value.muted = true;
+    mainVideoRef.value.muted = false;
     mainVideoRef.value.load();
     mainVideoRef.value.play().catch(() => {});
     mainVideoRef.value.requestVideoFrameCallback?.((_now, md) => {

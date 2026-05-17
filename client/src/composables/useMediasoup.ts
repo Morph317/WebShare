@@ -14,6 +14,8 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
   const consumerTransportReady = ref(false);
 
   const deviceReady = ref(false);
+  let recvTransportPromise: Promise<any> | null = null;
+  const pendingConsumption = new Set<string>();
 
   function setActiveStream(producerId: string | null): void {
     activeStreamId.value = producerId;
@@ -107,44 +109,53 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
     const d = device.value;
     if (!d) throw new Error('Device not initialized');
     if (recvTransport.value) return recvTransport.value;
+    if (recvTransportPromise) return recvTransportPromise;
 
-    signaling.send({ type: 'createConsumerTransport' });
-    const resp = await signaling.waitFor('consumer-transport-created');
-
-    const transport = d.createRecvTransport({
-      id: resp.id,
-      iceParameters: resp.iceParameters,
-      iceCandidates: resp.iceCandidates,
-      dtlsParameters: resp.dtlsParameters,
-    });
-
-    transport.on('connect', async (
-      { dtlsParameters }: { dtlsParameters: any },
-      callback: () => void,
-      errback: (err: Error) => void,
-    ) => {
+    recvTransportPromise = (async () => {
       try {
-        signaling.send({
-          type: 'connectConsumerTransport',
-          dtlsParameters,
+        signaling.send({ type: 'createConsumerTransport' });
+        const resp = await signaling.waitFor('consumer-transport-created');
+
+        const transport = d.createRecvTransport({
+          id: resp.id,
+          iceParameters: resp.iceParameters,
+          iceCandidates: resp.iceCandidates,
+          dtlsParameters: resp.dtlsParameters,
         });
-        await signaling.waitFor('consumer-transport-connected');
-        callback();
-      } catch (err) {
-        errback(err as Error);
+
+        transport.on('connect', async (
+          { dtlsParameters }: { dtlsParameters: any },
+          callback: () => void,
+          errback: (err: Error) => void,
+        ) => {
+          try {
+            signaling.send({
+              type: 'connectConsumerTransport',
+              dtlsParameters,
+            });
+            await signaling.waitFor('consumer-transport-connected');
+            callback();
+          } catch (err) {
+            errback(err as Error);
+          }
+        });
+
+        recvTransport.value = transport;
+        consumerTransportReady.value = true;
+
+        transport.on('connectionstatechange', (connectionState: string) => {
+          if (connectionState === 'disconnected' || connectionState === 'failed') {
+            consumerTransportReady.value = false;
+          }
+        });
+
+        return transport;
+      } finally {
+        recvTransportPromise = null;
       }
-    });
+    })();
 
-    recvTransport.value = transport;
-    consumerTransportReady.value = true;
-
-    transport.on('connectionstatechange', (connectionState: string) => {
-      if (connectionState === 'disconnected' || connectionState === 'failed') {
-        consumerTransportReady.value = false;
-      }
-    });
-
-    return transport;
+    return recvTransportPromise;
   }
 
   async function startSharing(): Promise<void> {
@@ -198,8 +209,18 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
     signaling.send({ type: 'stopSharing' });
   }
 
+  let consumeLock: Promise<void> = Promise.resolve();
+
   async function consumeProducer(producerId: string): Promise<void> {
     if (remoteStreams.value.has(producerId)) return;
+    if (pendingConsumption.has(producerId)) return;
+    pendingConsumption.add(producerId);
+
+    // Serialize consume calls to avoid waitFor race conditions
+    const prevLock = consumeLock;
+    let releaseLock: () => void;
+    consumeLock = new Promise<void>((resolve) => { releaseLock = resolve; });
+    await prevLock;
 
     try {
       console.log('[consumeProducer] creating consumer transport for producer:', producerId);
@@ -229,26 +250,47 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
       await consumer.resume();
       console.log('[consumeProducer] consumer paused:', consumer.paused, 'track readyState:', consumer.track.readyState);
 
-      const newStream: RemoteStream = {
-        producerId: resp.producerId,
-        peerId: '',
-        kind: resp.kind,
-        stream: new MediaStream([consumer.track]),
-        consumerId: consumer.id,
-      };
-
       // Find the peer ID for this producer
       const producer = signaling.producers.value.find((p) => p.producerId === producerId);
-      if (producer) {
-        newStream.peerId = producer.peerId;
-      }
+      const peerId = producer?.peerId || '';
 
+      // Merge audio+video tracks from same peer into one MediaStream
       const updated = new Map(remoteStreams.value);
-      updated.set(producerId, newStream);
-      remoteStreams.value = updated;
+      const existingEntry = Array.from(updated.values()).find(
+        (s) => s.peerId === peerId && s.peerId !== '',
+      );
 
-      if (!activeStreamId.value) {
-        activeStreamId.value = producerId;
+      if (existingEntry && existingEntry.kind !== resp.kind) {
+        // Add track to existing peer stream
+        existingEntry.stream.addTrack(consumer.track);
+        existingEntry.kind = 'audiovideo';
+
+        // Store consumer for cleanup
+        const streams = new Map(remoteStreams.value);
+        streams.set(producerId, {
+          producerId: resp.producerId,
+          peerId: peerId,
+          kind: resp.kind,
+          stream: existingEntry.stream,
+          consumerId: consumer.id,
+        });
+        remoteStreams.value = streams;
+        console.log(`[consumeProducer] merged ${resp.kind} track into peer ${peerId} stream`);
+      } else {
+        const newStream: RemoteStream = {
+          producerId: resp.producerId,
+          peerId,
+          kind: resp.kind,
+          stream: new MediaStream([consumer.track]),
+          consumerId: consumer.id,
+        };
+
+        updated.set(producerId, newStream);
+        remoteStreams.value = updated;
+
+        if (!activeStreamId.value) {
+          activeStreamId.value = producerId;
+        }
       }
 
       consumer.on('close', () => {
@@ -262,6 +304,9 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
       });
     } catch (err) {
       console.error('Failed to consume producer:', err);
+    } finally {
+      releaseLock!();
+      pendingConsumption.delete(producerId);
     }
   }
 

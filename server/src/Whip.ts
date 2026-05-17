@@ -1,192 +1,21 @@
 import type { Request, Response } from 'express';
 import * as mediasoup from 'mediasoup';
+import sdpTransform from 'sdp-transform';
+// @ts-ignore - mediasoup-client uses package exports
+import * as sdpCommonUtils from 'mediasoup-client/handlers/sdp/commonUtils';
+// @ts-ignore - mediasoup-client uses package exports
+import * as ortc from 'mediasoup-client/ortc';
+// @ts-ignore - mediasoup-client uses package exports
+import * as sdpUnifiedPlanUtils from 'mediasoup-client/handlers/sdp/unifiedPlanUtils';
 import { config } from './config';
 import { Peer, Room } from './Room';
-
-interface ParsedOffer {
-  iceUfrag?: string;
-  icePwd?: string;
-  fingerprint?: { algorithm: string; value: string };
-  setup?: string;
-  mid?: string;
-  codecs: RtpCodecInfo[];
-  headerExtensions: RtpHeaderExtInfo[];
-  ssrcs: SsrcInfo[];
-}
-
-interface RtpCodecInfo {
-  payloadType: number;
-  mimeType: string;
-  clockRate: number;
-  parameters: Record<string, string>;
-  rtcpFeedback: { type: string; parameter?: string }[];
-}
-
-interface RtpHeaderExtInfo {
-  id: number;
-  uri: string;
-}
-
-interface SsrcInfo {
-  ssrc: number;
-  cname?: string;
-  msid?: string;
-}
-
-function parseSdp(sdp: string): ParsedOffer {
-  const result: ParsedOffer = {
-    codecs: [],
-    headerExtensions: [],
-    ssrcs: [],
-  };
-
-  const rawLines = sdp.split(/\r?\n/);
-  let mediaSection = false;
-
-  for (const line of rawLines) {
-    if (line.startsWith('m=video')) {
-      mediaSection = true;
-      continue;
-    }
-    if (!mediaSection) continue;
-    if (line.startsWith('m=') && !line.startsWith('m=video')) break;
-
-    if (line.startsWith('a=ice-ufrag:')) {
-      result.iceUfrag = line.slice('a=ice-ufrag:'.length);
-    } else if (line.startsWith('a=ice-pwd:')) {
-      result.icePwd = line.slice('a=ice-pwd:'.length);
-    } else if (line.startsWith('a=fingerprint:')) {
-      const parts = line.split(' ');
-      result.fingerprint = {
-        algorithm: parts[0].split(':')[1],
-        value: parts[1],
-      };
-    } else if (line.startsWith('a=setup:')) {
-      result.setup = line.slice('a=setup:'.length);
-    } else if (line.startsWith('a=mid:')) {
-      result.mid = line.slice('a=mid:'.length);
-    } else if (line.startsWith('a=rtpmap:')) {
-      const m = line.match(/a=rtpmap:(\d+)\s+([\w/]+)\/(\d+)/);
-      if (m) {
-        result.codecs.push({
-          payloadType: parseInt(m[1]),
-          mimeType: m[2],
-          clockRate: parseInt(m[3]),
-          parameters: {},
-          rtcpFeedback: [],
-        });
-      }
-    } else if (line.startsWith('a=fmtp:')) {
-      const m = line.match(/a=fmtp:(\d+)\s+(.+)/);
-      if (m) {
-        const pt = parseInt(m[1]);
-        const codec = result.codecs.find((c) => c.payloadType === pt);
-        if (codec) {
-          for (const param of m[2].split(/\s*;\s*/)) {
-            const eq = param.indexOf('=');
-            if (eq > 0) {
-              codec.parameters[param.slice(0, eq)] = param.slice(eq + 1);
-            }
-          }
-        }
-      }
-    } else if (line.startsWith('a=rtcp-fb:')) {
-      const m = line.match(/a=rtcp-fb:(\d+)\s+(\S+)(?:\s+(.+))?/);
-      if (m) {
-        const pt = parseInt(m[1]);
-        const codec = result.codecs.find((c) => c.payloadType === pt);
-        if (codec) {
-          codec.rtcpFeedback.push({ type: m[2], parameter: m[3] });
-        }
-      }
-    } else if (line.startsWith('a=extmap:')) {
-      const m = line.match(/a=extmap:(\d+)(?:\/\S+)?\s+(\S+)/);
-      if (m) {
-        result.headerExtensions.push({ id: parseInt(m[1]), uri: m[2] });
-      }
-    } else if (line.startsWith('a=ssrc:')) {
-      const m = line.match(/a=ssrc:(\d+)\s+cname:(.+)/);
-      if (m) {
-        const ssrc = parseInt(m[1]);
-        let entry = result.ssrcs.find((s) => s.ssrc === ssrc);
-        if (!entry) { entry = { ssrc }; result.ssrcs.push(entry); }
-        entry.cname = m[2];
-      } else {
-        const m2 = line.match(/a=ssrc:(\d+)\s+msid:(.+)/);
-        if (m2) {
-          const ssrc = parseInt(m2[1]);
-          let entry = result.ssrcs.find((s) => s.ssrc === ssrc);
-          if (!entry) { entry = { ssrc }; result.ssrcs.push(entry); }
-          entry.msid = m2[2];
-        }
-      }
-    }
-  }
-
-  return result;
-}
-
-function buildAnswer(
-  transport: mediasoup.types.WebRtcTransport,
-  offer: ParsedOffer,
-): string {
-  const iceParams = transport.iceParameters;
-  const dtlsParams = transport.dtlsParameters;
-  const candidates = transport.iceCandidates;
-
-  let sdp = '';
-  sdp += 'v=0\r\n';
-  sdp += 'o=- 0 0 IN IP4 0.0.0.0\r\n';
-  sdp += 's=-\r\n';
-  sdp += 't=0 0\r\n';
-  if (offer.mid) sdp += `a=group:BUNDLE ${offer.mid}\r\n`;
-  sdp += 'a=ice-lite\r\n';
-
-  let codec = offer.codecs.find((c) => c.mimeType.toLowerCase() === 'video/h264');
-  if (!codec) codec = offer.codecs[0];
-  if (!codec) throw new Error('No video codec in offer');
-
-  const pt = codec.payloadType;
-  sdp += `m=video 9 UDP/TLS/RTP/SAVPF ${pt}\r\n`;
-
-  const ip = candidates[0]?.ip || config.announcedIp || '127.0.0.1';
-  sdp += `c=IN IP4 ${ip}\r\n`;
-
-  sdp += `a=rtpmap:${pt} ${codec.mimeType}/${codec.clockRate}\r\n`;
-  const fmtpKeys = Object.keys(codec.parameters);
-  if (fmtpKeys.length > 0) {
-    sdp += `a=fmtp:${pt} ${fmtpKeys.map((k) => `${k}=${codec.parameters[k]}`).join(';')}\r\n`;
-  }
-  for (const fb of codec.rtcpFeedback) {
-    sdp += `a=rtcp-fb:${pt} ${fb.type}`;
-    if (fb.parameter) sdp += ` ${fb.parameter}`;
-    sdp += '\r\n';
-  }
-
-  sdp += 'a=rtcp-mux\r\n';
-  sdp += `a=ice-ufrag:${iceParams.usernameFragment}\r\n`;
-  sdp += `a=ice-pwd:${iceParams.password}\r\n`;
-
-  for (let i = 0; i < candidates.length; i++) {
-    const c = candidates[i];
-    let cand = `a=candidate:${i + 1} 1 ${c.protocol.toUpperCase()} ${c.priority} ${c.ip} ${c.port} typ ${c.type}`;
-    if (c.tcpType) cand += ` tcptype ${c.tcpType}`;
-    sdp += cand + '\r\n';
-  }
-
-  sdp += `a=fingerprint:${dtlsParams.fingerprints[0].algorithm} ${dtlsParams.fingerprints[0].value}\r\n`;
-  sdp += 'a=setup:passive\r\n';
-  sdp += `a=mid:${offer.mid || '0'}\r\n`;
-  sdp += 'a=recvonly\r\n';
-
-  return sdp;
-}
 
 export function createWhipHandler(
   rooms: Map<string, Room>,
   peerMap: Map<string, Peer>,
   nextPeerId: { value: number },
   worker: mediasoup.types.Worker,
+  transportMap: Map<string, mediasoup.types.WebRtcTransport>,
 ) {
   async function initRoom(roomId: string): Promise<Room> {
     let room = rooms.get(roomId);
@@ -214,6 +43,7 @@ export function createWhipHandler(
   }
 
   return async function handleWhip(req: Request, res: Response): Promise<void> {
+    console.log('[whip] received request');
     const roomId = (req.query.roomId as string) || 'default';
     const displayName = (req.query.displayName as string) || 'OBS';
 
@@ -225,70 +55,198 @@ export function createWhipHandler(
           : '';
       if (!offerSdp) { res.status(400).send('Missing SDP offer'); return; }
 
-      const offer = parseSdp(offerSdp);
-      if (!offer.mid && !offer.codecs.length) {
-        res.status(400).send('Could not parse SDP offer');
-        return;
+      console.log('[whip] raw SDP offer:\n' + offerSdp);
+
+      // Parse offer and extract capabilities
+      const offerObject = sdpTransform.parse(offerSdp);
+
+      // OBS sends both a=ssrc:...msid:... AND a=msid:... lines.
+      // Remove redundant a=msid lines to prevent duplicate MSID in consumer SDP.
+      for (const media of offerObject.media) {
+        (media as any).msid = undefined;
       }
 
+      const rtpCapabilities = sdpCommonUtils.extractRtpCapabilities({ sdpObject: offerObject });
+      const dtlsParameters = sdpCommonUtils.extractDtlsParameters({ sdpObject: offerObject });
+
+      // WHIP: Following @eyevinn/whip-endpoint, SFU is DTLS client (active).
+      // OBS offer has a=setup:actpass, our answer will say a=setup:active.
+      // Tell mediasoup the remote (OBS) is DTLS server so we act as client.
+      dtlsParameters.role = 'server';
+
       const room = await initRoom(roomId);
+      const routerRtpCapabilities = room.router.rtpCapabilities;
+      const extendedRtpCapabilities = ortc.getExtendedRtpCapabilities(
+        rtpCapabilities, routerRtpCapabilities, true,
+      );
+
+      const sendingRtpParametersByKind: Record<string, any> = {
+        audio: ortc.getSendingRtpParameters('audio', extendedRtpCapabilities),
+        video: ortc.getSendingRtpParameters('video', extendedRtpCapabilities),
+      };
 
       const peerId = `obs_${nextPeerId.value++}`;
       const peer = new Peer(peerId, displayName, null);
       room.addPeer(peer);
       peerMap.set(peerId, peer);
 
-      const transport = await room.router.createWebRtcTransport(
-        config.mediasoup.webRtcTransport,
+      room.broadcast(
+        { type: 'peer-joined', peerId, displayName },
+        peerId,
       );
+
+      const transport = await room.router.createWebRtcTransport({
+        ...config.mediasoup.webRtcTransport,
+        iceConsentTimeout: 0,
+      });
       peer.producerTransport = transport;
+      transportMap.set(transport.id, transport);
 
       transport.on('@close', () => cleanup(peer));
-
-      transport.on('dtlsstatechange', async (dtlsState) => {
+      transport.on('dtlsstatechange', (dtlsState) => {
         console.log(`[whip dtls] peer=${peerId} -> ${dtlsState}`);
-        if (dtlsState !== 'connected') return;
+      });
+      transport.on('icestatechange', (iceState) => {
+        console.log(`[whip ice] peer=${peerId} -> ${iceState}`);
+      });
+
+      // Connect transport with remote DTLS params from offer
+      await transport.connect({ dtlsParameters });
+
+      // Build answer SDP by modifying the offer (following @eyevinn/whip-endpoint SfuWhipResource pattern)
+      const answerObject = JSON.parse(JSON.stringify(offerObject));
+
+      // Session-level
+      answerObject.origin.sessionVersion++;
+      answerObject.msidSemantic = answerObject.msidSemantic || { semantic: 'WMS', token: '' };
+      (answerObject as any).extmapAllowMixed = undefined;
+      (answerObject as any).iceOptions = undefined;
+      answerObject.iceLite = true;
+      answerObject.iceUfrag = transport.iceParameters.usernameFragment;
+      answerObject.icePwd = transport.iceParameters.password;
+      const sha256Fp = transport.dtlsParameters.fingerprints!.find(
+        f => f.algorithm === 'sha-256',
+      ) || transport.dtlsParameters.fingerprints![transport.dtlsParameters.fingerprints!.length - 1];
+      answerObject.fingerprint = {
+        type: sha256Fp.algorithm,
+        hash: sha256Fp.value,
+      };
+      answerObject.setup = 'active';
+
+      // Media-level
+      let bundleMids = '';
+      let candidatesAdded = false;
+      const iceCandidates = transport.iceCandidates;
+
+      // Remove non-audio/video media sections (data channels etc.)
+      answerObject.media = answerObject.media.filter(
+        (m: any) => m.type === 'audio' || m.type === 'video',
+      );
+
+      for (let i = 0; i < answerObject.media.length; i++) {
+        const media: any = answerObject.media[i];
+        const kind = media.type as 'audio' | 'video';
+
+        bundleMids = bundleMids ? `${bundleMids} ${media.mid}` : `${media.mid}`;
+
+        media.iceOptions = undefined;
+        media.iceUfrag = transport.iceParameters.usernameFragment;
+        media.icePwd = transport.iceParameters.password;
+        media.fingerprint = {
+          type: sha256Fp.algorithm,
+          hash: sha256Fp.value,
+        };
+        media.setup = 'active';
+        media.ssrcGroups = undefined;
+        media.ssrcs = undefined;
+        media.msid = undefined;
+        media.port = 9;
+        media.rtcp = { port: 9, netType: 'IN', ipVer: 4, address: '0.0.0.0' };
+        media.direction = 'recvonly';
+
+        // ICE candidates (only add to first media for BUNDLE)
+        if (!candidatesAdded && iceCandidates.length > 0) {
+          media.candidates = iceCandidates.map((c: any) => ({
+            foundation: c.foundation,
+            component: 1,
+            transport: c.protocol,
+            priority: c.priority,
+            ip: c.ip,
+            port: c.port,
+            type: c.type,
+            raddr: c.raddr,
+            rport: c.rport,
+            generation: c.generation ?? 0,
+          }));
+          media.endOfCandidates = 'end-of-candidates';
+          candidatesAdded = true;
+        }
+
+        // Filter codecs to only what ORTC negotiated
+        const negotiatedCodecs: any[] = sendingRtpParametersByKind[kind].codecs;
+        const negotiatedPayloads = new Set<number>();
+        const keptRtps: any[] = [];
+
+        for (const rtp of (media.rtp || [])) {
+          const matched = negotiatedCodecs.find(
+            (c: any) => rtp.codec.toUpperCase() === c.mimeType.split('/')[1]?.toUpperCase(),
+          );
+          if (matched) {
+            negotiatedPayloads.add(rtp.payload);
+            keptRtps.push(rtp);
+          }
+        }
+        media.rtp = keptRtps;
+
+        // Filter fmtp to kept payloads
+        if (media.fmtp) {
+          media.fmtp = media.fmtp.filter((f: any) => negotiatedPayloads.has(f.payload));
+        }
+
+        // Set payloads string
+        media.payloads = keptRtps.map((r: any) => String(r.payload)).join(' ');
+
+        // Filter RTCP-FB to kept payloads
+        if (media.rtcpFb) {
+          media.rtcpFb = media.rtcpFb.filter((fb: any) => negotiatedPayloads.has(fb.payload));
+        }
+      }
+
+      // Set BUNDLE group
+      answerObject.groups = [{ type: 'BUNDLE', mids: bundleMids }];
+
+      const answerSdp = sdpTransform.write(answerObject);
+      console.log(`[whip] answer SDP:\n${answerSdp}`);
+
+      // Create producers for each media kind
+      for (const mediaSection of offerObject.media) {
+        const kind = mediaSection.type as 'audio' | 'video';
+        if (kind !== 'audio' && kind !== 'video') continue;
+
+        const sendingRtpParameters = JSON.parse(JSON.stringify(sendingRtpParametersByKind[kind]));
+        sendingRtpParameters.mid = String(mediaSection.mid);
+        sendingRtpParameters.rtcp.cname =
+          sdpCommonUtils.getCname({ offerMediaObject: mediaSection }) || `obs_${peerId}`;
+        sendingRtpParameters.encodings =
+          sdpUnifiedPlanUtils.getRtpEncodings({
+            offerMediaObject: mediaSection,
+            codecs: sendingRtpParameters.codecs,
+          });
+        console.log(`[whip] ${kind} rtpParams: mid=${sendingRtpParameters.mid}, encodings=${JSON.stringify(sendingRtpParameters.encodings)}`);
 
         try {
-          const codec = offer.codecs.find(
-            (c) => c.mimeType.toLowerCase() === 'video/h264',
-          ) || offer.codecs[0];
-          if (!codec) return;
-
           const producer = await transport.produce({
-            kind: 'video',
-            rtpParameters: {
-              mid: offer.mid,
-              codecs: [{
-                mimeType: codec.mimeType,
-                payloadType: codec.payloadType,
-                clockRate: codec.clockRate,
-                parameters: codec.parameters,
-                rtcpFeedback: codec.rtcpFeedback,
-              }],
-              encodings: offer.ssrcs.length > 0
-                ? offer.ssrcs.map((s) => ({ ssrc: s.ssrc }))
-                : [{}],
-              headerExtensions: offer.headerExtensions.map((ext) => ({
-                uri: ext.uri as mediasoup.types.RtpHeaderExtensionUri,
-                id: ext.id,
-                encrypt: false,
-              })),
-              rtcp: {
-                cname: offer.ssrcs[0]?.cname || `obs_${peerId}`,
-                reducedSize: true,
-              },
-            },
+            kind,
+            rtpParameters: sendingRtpParameters,
             appData: { source: 'obs' },
           });
 
-          peer.producers.set(producer.id, producer);
-          peer.isSharing = true;
-
-          console.log(`[whip] producer ${producer.id} (${codec.mimeType}) created for ${peerId}`);
+            peer.producers.set(producer.id, producer);
+            peer.isSharing = true;
+            console.log(`[whip] ${kind} producer ${producer.id} created for ${peerId}, codecs: ${sendingRtpParameters.codecs?.map((c: any) => c.mimeType).join(', ')}`);
 
           producer.on('@close', () => {
-            console.log(`[whip] producer closed ${producer.id}`);
+            console.log(`[whip] ${kind} producer closed ${producer.id}`);
             peer.producers.delete(producer.id);
             if (peer.producers.size === 0) peer.isSharing = false;
             room.broadcast(
@@ -298,31 +256,13 @@ export function createWhipHandler(
           });
 
           room.broadcast(
-            { type: 'new-producer', producerId: producer.id, peerId: peer.id, kind: 'video' },
+            { type: 'new-producer', producerId: producer.id, peerId: peer.id, kind },
             peer.id,
           );
         } catch (err) {
-          console.error('[whip] producer creation failed:', err);
+          console.error(`[whip] ${kind} producer creation failed:`, err);
         }
-      });
-
-      transport.on('icestatechange', (iceState) => {
-        console.log(`[whip ice] peer=${peerId} -> ${iceState}`);
-      });
-
-      if (offer.fingerprint) {
-        await transport.connect({
-          dtlsParameters: {
-            role: 'auto',
-            fingerprints: [{
-              algorithm: offer.fingerprint.algorithm as 'sha-256' | 'sha-384' | 'sha-512',
-              value: offer.fingerprint.value,
-            }],
-          },
-        });
       }
-
-      const answerSdp = buildAnswer(transport, offer);
 
       res.status(201)
         .set({
@@ -330,9 +270,38 @@ export function createWhipHandler(
           'Location': `/api/whip/${transport.id}`,
         })
         .send(answerSdp);
+
+      transport.appData = { peer, room, transport, peerId };
     } catch (err) {
       console.error('[whip] error:', err);
       res.status(500).send((err as Error).message || 'Internal error');
     }
+  };
+}
+
+export function createTrickleHandler(
+  transportMap: Map<string, mediasoup.types.WebRtcTransport>,
+) {
+  return async function handleTrickle(req: Request, res: Response): Promise<void> {
+    const transportId = req.params.id as string;
+    const body = typeof req.body === 'string'
+      ? req.body
+      : Buffer.isBuffer(req.body)
+        ? req.body.toString('utf-8')
+        : '';
+
+    const transport = transportMap.get(transportId);
+    if (!transport) {
+      console.warn(`[whip trickle] unknown transport ${transportId}`);
+      res.status(204).end();
+      return;
+    }
+
+    if (body.trim()) {
+      console.log(`[whip trickle] transport=${transportId} candidates:\n${body.trim()}`);
+      // mediasoup is ICE-lite: remote candidates are discovered via STUN
+      // binding requests, not explicitly added. Just acknowledge.
+    }
+    res.status(204).end();
   };
 }

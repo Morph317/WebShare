@@ -7,11 +7,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import * as mediasoup from 'mediasoup';
 import { config } from './config';
 import { Peer, Room } from './Room';
-import { createWhipHandler } from './Whip';
+import { createWhipHandler, createTrickleHandler } from './Whip';
 
 let worker: mediasoup.types.Worker;
 const rooms: Map<string, Room> = new Map();
 const peerMap: Map<string, Peer> = new Map();
+const transportMap: Map<string, mediasoup.types.WebRtcTransport> = new Map();
 const nextPeerId = { value: 1 };
 
 async function initRoom(roomId: string): Promise<Room> {
@@ -73,6 +74,18 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
           },
           peer.id,
         );
+        break;
+      }
+
+      case 'getRouterRtpCapabilities': {
+        if (!peer.room) {
+          peer.send({ type: 'error', message: 'Not in a room' });
+          return;
+        }
+        peer.send({
+          type: 'router-rtp-capabilities',
+          rtpCapabilities: peer.room.router.rtpCapabilities,
+        });
         break;
       }
 
@@ -181,6 +194,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
           config.mediasoup.webRtcTransport,
         );
         peer.consumerTransport = transport;
+        console.log(`[consumer-transport created] peer=${peer.id} transport=${transport.id}`);
 
         transport.on('@close', () => {
           peer.consumerTransport = null;
@@ -188,6 +202,9 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 
         transport.on('dtlsstatechange', (dtlsState) => {
           console.log(`[consumer-transport dtls] ${transport.id} -> ${dtlsState}`);
+        });
+        transport.on('icestatechange', (iceState) => {
+          console.log(`[consumer-transport ice] ${transport.id} -> ${iceState}`);
         });
         transport.on('icestatechange', (iceState) => {
           console.log(`[consumer-transport ice] ${transport.id} -> ${iceState}`);
@@ -209,7 +226,9 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
           peer.send({ type: 'error', message: 'No consumer transport' });
           return;
         }
+        console.log(`[consumer-transport connect] peer=${peer.id} transport=${transport.id}`);
         await transport.connect({ dtlsParameters: msg.dtlsParameters as mediasoup.types.DtlsParameters });
+        console.log(`[consumer-transport connected] peer=${peer.id}`);
         peer.send({ type: 'consumer-transport-connected' });
         break;
       }
@@ -225,8 +244,12 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
         const producerId = msg.producerId as string;
         const rtpCapabilities = msg.rtpCapabilities as mediasoup.types.RtpCapabilities;
 
+        // Log client's supported video codecs for debugging
+        const videoCodecs = rtpCapabilities.codecs?.filter((c: any) => c.kind === 'video') || [];
+        console.log(`[consume] client video codecs: ${videoCodecs.map((c: any) => c.mimeType).join(', ') || '(none)'}`);
+
         if (!peer.room.router.canConsume({ producerId, rtpCapabilities })) {
-          console.log(`[consume] rejected: cannot consume`);
+          console.log(`[consume] rejected: cannot consume (codec mismatch)`);
           peer.send({ type: 'error', message: 'Cannot consume this producer' });
           return;
         }
@@ -236,6 +259,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
           rtpCapabilities,
         });
         console.log(`[consume] consumer created: ${consumer.id}, paused: ${consumer.paused}`);
+        console.log(`[consume] consumer rtpParams: kind=${consumer.kind}, mid=${consumer.rtpParameters.mid}, encodings=${JSON.stringify(consumer.rtpParameters.encodings)}, codecs=${consumer.rtpParameters.codecs?.map((c: any) => c.mimeType).join(',')}`);
 
         setTimeout(async () => {
           try {
@@ -335,7 +359,17 @@ async function main(): Promise<void> {
   const app = express();
 
   // WHIP endpoint — raw SDP body, before static middleware
-  app.post('/api/whip', express.raw({ type: '*/*', limit: '64kb' }), createWhipHandler(rooms, peerMap, nextPeerId, worker));
+  app.post('/api/whip', express.text({ type: 'application/sdp', limit: '64kb' }), createWhipHandler(rooms, peerMap, nextPeerId, worker, transportMap));
+  app.patch('/api/whip/:id', express.text({ type: 'application/trickle-ice-sdpfrag', limit: '16kb' }), createTrickleHandler(transportMap));
+  app.delete('/api/whip/:id', (req, res) => {
+    const transportId = req.params.id as string;
+    const transport = transportMap.get(transportId);
+    if (transport) {
+      transport.close();
+      transportMap.delete(transportId);
+    }
+    res.status(200).send('OK');
+  });
 
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
   app.use(express.static(clientDist));

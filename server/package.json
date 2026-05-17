@@ -4,17 +4,21 @@
   "description": "WebShare SFU server with mediasoup",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "set ANNOUNCED_IP=127.0.0.1&& tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },
   "dependencies": {
     "express": "^4.21.0",
     "mediasoup": "^3.14.0",
+    "mediasoup-client": "^3.20.0",
+    "mediasoup-sdp-bridge": "github:versatica/mediasoup-sdp-bridge",
+    "sdp-transform": "^3.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
+    "@types/sdp-transform": "^2.15.0",
     "@types/ws": "^8.5.13",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"

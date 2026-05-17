@@ -1,7 +1,7 @@
 export const config = {
   httpPort: parseInt(process.env.HTTP_PORT || '8080', 10),
 
-  announcedIp: process.env.ANNOUNCED_IP,
+  announcedIp: process.env.ANNOUNCED_IP || undefined,
 
   mediasoup: {
     worker: {
@@ -53,7 +53,7 @@ export const config = {
       listenIps: [
         {
           ip: '0.0.0.0',
-          announcedIp: process.env.ANNOUNCED_IP || undefined,
+          announcedIp: process.env.ANNOUNCED_IP?.trim() || undefined,
         },
       ],
       initialAvailableOutgoingBitrate: 20000000,
