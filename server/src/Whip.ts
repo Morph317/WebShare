@@ -112,7 +112,13 @@ export function createWhipHandler(
       const transport = await room.router.createWebRtcTransport({
         ...config.mediasoup.webRtcTransport,
         iceConsentTimeout: 30,
+      }).catch((err) => {
+        console.error(`[whip] transport creation failed for ${peerId}:`, err.message);
+        cleanup(peer);
+        res.status(503).send('Transport creation failed, server busy');
+        return null;
       });
+      if (!transport) return;
       peer.producerTransport = transport;
       transportMap.set(transport.id, transport);
 

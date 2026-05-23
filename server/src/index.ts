@@ -151,6 +151,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 
         setTimeout(async () => {
           try {
+            if (producer.closed) return;
             const stats = await producer.getStats();
             console.log(`[producer stats @3s] ${producer.id}:`, JSON.stringify(stats));
           } catch {}
@@ -158,6 +159,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 
         setTimeout(async () => {
           try {
+            if (producer.closed) return;
             const stats = await producer.getStats();
             console.log(`[producer stats @10s] ${producer.id}:`, JSON.stringify(stats));
           } catch {}
@@ -263,6 +265,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 
         setTimeout(async () => {
           try {
+            if (consumer.closed) return;
             const stats = await consumer.getStats();
             console.log(`[consumer stats @5s] ${consumer.id}:`, JSON.stringify(stats));
           } catch {}
@@ -270,6 +273,7 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 
         setTimeout(async () => {
           try {
+            if (consumer.closed) return;
             const stats = await consumer.getStats();
             console.log(`[consumer stats @12s] ${consumer.id}:`, JSON.stringify(stats));
           } catch {}
@@ -336,6 +340,13 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  process.on('uncaughtException', (err) => {
+    console.error('[FATAL] Uncaught exception:', err);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('[FATAL] Unhandled rejection:', reason);
+  });
+
   mediasoup.setLogEventListeners({
     ondebug: (ns, msg) => console.log(`[ms-debug:${ns}] ${msg}`),
     onwarn: (ns, msg) => console.warn(`[ms-warn:${ns}] ${msg}`),
