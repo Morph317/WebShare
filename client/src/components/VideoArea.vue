@@ -50,9 +50,13 @@
           ref="mainVideoRef"
           autoplay
           playsinline
-          controls
           class="main-video"
         ></video>
+        <div class="video-overlay">
+          <button class="btn-fullscreen" @click="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '全屏'">
+            {{ isFullscreen ? '⛶' : '⛶' }}
+          </button>
+        </div>
         <div class="main-video-label">
           {{ getPeerName(activeStream.peerId) }}
         </div>
@@ -67,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { RemoteStream, PeerInfo } from '../types';
 
 const props = defineProps<{
@@ -86,6 +90,25 @@ const emit = defineEmits<{
 
 const mainVideoRef = ref<HTMLVideoElement | null>(null);
 const videoRefs: Map<string, HTMLVideoElement> = new Map();
+const isFullscreen = ref(false);
+
+function toggleFullscreen(): void {
+  const el = mainVideoRef.value;
+  if (!el) return;
+  if (!document.fullscreenElement) {
+    el.requestFullscreen?.()
+      || (el as any).webkitRequestFullscreen?.()
+      || (el as any).mozRequestFullScreen?.();
+  } else {
+    document.exitFullscreen?.()
+      || (document as any).webkitExitFullscreen?.()
+      || (document as any).mozCancelFullScreen?.();
+  }
+}
+
+function onFullscreenChange(): void {
+  isFullscreen.value = !!document.fullscreenElement;
+}
 
 function setVideoRef(producerId: string, el: HTMLVideoElement | null): void {
   if (el) {
@@ -164,6 +187,18 @@ watch(activeStream, (stream) => {
     mainVideoRef.value.srcObject = null;
   }
 }, { flush: 'post' });
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+  document.addEventListener('mozfullscreenchange', onFullscreenChange);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
+  document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+  document.removeEventListener('mozfullscreenchange', onFullscreenChange);
+});
 </script>
 
 <style scoped>
@@ -282,6 +317,26 @@ watch(activeStream, (stream) => {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+.video-overlay {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 10;
+}
+.btn-fullscreen {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ccc;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+.btn-fullscreen:hover {
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
 }
 .main-video-label {
   position: absolute;

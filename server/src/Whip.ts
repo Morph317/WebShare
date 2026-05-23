@@ -39,7 +39,21 @@ export function createWhipHandler(
         rooms.delete(room.id);
       }
     }
+    // Close producers and transport
+    for (const p of peer.producers.values()) {
+      p.close();
+    }
+    peer.producers.clear();
+    const transport = peer.producerTransport;
+    if (transport) {
+      peer.producerTransport = null;
+      transportMap.delete(transport.id);
+      if (!transport.closed) {
+        transport.close();
+      }
+    }
     peerMap.delete(peer.id);
+    console.log(`[whip cleanup] peer=${peer.id} fully cleaned`);
   }
 
   return async function handleWhip(req: Request, res: Response): Promise<void> {
@@ -97,7 +111,7 @@ export function createWhipHandler(
 
       const transport = await room.router.createWebRtcTransport({
         ...config.mediasoup.webRtcTransport,
-        iceConsentTimeout: 0,
+        iceConsentTimeout: 30,
       });
       peer.producerTransport = transport;
       transportMap.set(transport.id, transport);
