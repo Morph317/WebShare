@@ -14,6 +14,7 @@ const rooms: Map<string, Room> = new Map();
 const peerMap: Map<string, Peer> = new Map();
 const transportMap: Map<string, mediasoup.types.WebRtcTransport> = new Map();
 const nextPeerId = { value: 1 };
+let pendingRequestCount = 0;
 
 async function initRoom(roomId: string): Promise<Room> {
   let room = rooms.get(roomId);
@@ -370,7 +371,17 @@ async function main(): Promise<void> {
   const app = express();
 
   // WHIP endpoint — raw SDP body, before static middleware
-  app.post('/api/whip', express.text({ type: 'application/sdp', limit: '64kb' }), createWhipHandler(rooms, peerMap, nextPeerId, worker, transportMap));
+  const whipHandler = createWhipHandler(rooms, peerMap, nextPeerId, worker, transportMap);
+  app.post('/api/whip', express.text({ type: 'application/sdp', limit: '64kb' }), async (req, res) => {
+    pendingRequestCount++;
+    const transportCountBefore = transportMap.size;
+    console.log(`[whip] incoming request (transports=${transportCountBefore} pending=${pendingRequestCount})`);
+    try {
+      await whipHandler(req, res);
+    } finally {
+      pendingRequestCount--;
+    }
+  });
   app.patch('/api/whip/:id', express.text({ type: 'application/trickle-ice-sdpfrag', limit: '16kb' }), createTrickleHandler(transportMap));
   app.delete('/api/whip/:id', (req, res) => {
     const transportId = req.params.id as string;
@@ -380,6 +391,25 @@ async function main(): Promise<void> {
       transportMap.delete(transportId);
     }
     res.status(200).send('OK');
+  });
+
+  // Status endpoint for diagnostics
+  app.get('/api/status', (_req, res) => {
+    let totalProducers = 0;
+    let totalConsumers = 0;
+    for (const peer of peerMap.values()) {
+      totalProducers += peer.producers.size;
+      totalConsumers += peer.consumers.size;
+    }
+    res.json({
+      uptime: process.uptime(),
+      rooms: rooms.size,
+      peers: peerMap.size,
+      transports: transportMap.size,
+      producers: totalProducers,
+      consumers: totalConsumers,
+      pendingRequests: pendingRequestCount,
+    });
   });
 
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
@@ -434,6 +464,17 @@ async function main(): Promise<void> {
       console.log(`Announced IP: ${config.announcedIp}`);
     }
   });
+
+  // Periodic resource status
+  setInterval(() => {
+    let totalProducers = 0;
+    let totalConsumers = 0;
+    for (const peer of peerMap.values()) {
+      totalProducers += peer.producers.size;
+      totalConsumers += peer.consumers.size;
+    }
+    console.log(`[status @${Math.round(process.uptime())}s] rooms=${rooms.size} peers=${peerMap.size} transports=${transportMap.size} producers=${totalProducers} consumers=${totalConsumers} pending=${pendingRequestCount}`);
+  }, 60000);
 }
 
 main().catch((err) => {
