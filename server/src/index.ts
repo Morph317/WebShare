@@ -9,6 +9,70 @@ import { config } from './config';
 import { Peer, Room } from './Room';
 import { createWhipHandler, createTrickleHandler } from './Whip';
 
+const LOG_DIR = path.join(__dirname, '..', 'logs');
+const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
+
+let logStream: fs.WriteStream | null = null;
+let logPath = '';
+
+function setupFileLogging(): void {
+  if (!fs.existsSync(LOG_DIR)) {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+  }
+  const date = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  logPath = path.join(LOG_DIR, `server-${date}.log`);
+  logStream = fs.createWriteStream(logPath, { flags: 'a' });
+
+  const origLog = console.log.bind(console);
+  const origWarn = console.warn.bind(console);
+  const origError = console.error.bind(console);
+
+  function writeToFile(level: string, args: unknown[]): void {
+    if (!logStream) return;
+    const ts = new Date().toISOString();
+    const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    logStream.write(`[${ts}] ${level} ${msg}\n`);
+  }
+
+  console.log = (...args: unknown[]) => {
+    origLog(...args);
+    writeToFile('INFO', args);
+    checkLogSize();
+  };
+  console.warn = (...args: unknown[]) => {
+    origWarn(...args);
+    writeToFile('WARN', args);
+  };
+  console.error = (...args: unknown[]) => {
+    origError(...args);
+    writeToFile('ERROR', args);
+  };
+}
+
+function checkLogSize(): void {
+  if (!logStream || !logPath) return;
+  try {
+    const stat = fs.statSync(logPath);
+    if (stat.size > MAX_LOG_SIZE) {
+      const lines = fs.readFileSync(logPath, 'utf-8').split('\n');
+      const trimmed = lines.slice(-Math.floor(lines.length / 2)).join('\n');
+      logStream.end();
+      logStream = fs.createWriteStream(logPath, { flags: 'w' });
+      logStream.write(trimmed + '\n');
+    }
+  } catch {}
+}
+
+function getLogContent(tailLines?: number): string {
+  if (!logPath || !fs.existsSync(logPath)) return '';
+  const content = fs.readFileSync(logPath, 'utf-8');
+  if (tailLines && tailLines > 0) {
+    const lines = content.split('\n');
+    return lines.slice(-tailLines).join('\n');
+  }
+  return content;
+}
+
 let worker: mediasoup.types.Worker;
 const rooms: Map<string, Room> = new Map();
 const peerMap: Map<string, Peer> = new Map();
@@ -341,6 +405,8 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  setupFileLogging();
+
   process.on('uncaughtException', (err) => {
     console.error('[FATAL] Uncaught exception:', err);
   });
@@ -410,6 +476,12 @@ async function main(): Promise<void> {
       consumers: totalConsumers,
       pendingRequests: pendingRequestCount,
     });
+  });
+
+  app.get('/api/logs', (req, res) => {
+    const tail = parseInt(req.query.tail as string) || 0;
+    const content = getLogContent(tail || undefined);
+    res.type('text/plain').send(content);
   });
 
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
