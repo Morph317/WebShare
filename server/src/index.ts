@@ -3,6 +3,7 @@ import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as mediasoup from 'mediasoup';
 import { config } from './config';
@@ -407,11 +408,43 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 async function main(): Promise<void> {
   setupFileLogging();
 
+  // Kill orphan mediasoup-worker processes from previous crashes
+  try {
+    const result = execSync(
+      'pgrep -f mediasoup-worker || true',
+      { encoding: 'utf8', timeout: 5000 },
+    ).trim();
+    if (result) {
+      const pids = result.split('\n').filter(Boolean);
+      console.log(`[startup] Killing ${pids.length} orphan mediasoup-worker(s): ${pids.join(', ')}`);
+      for (const pid of pids) {
+        try { process.kill(parseInt(pid, 10), 'SIGKILL'); } catch {}
+      }
+    }
+  } catch { /* pgrep not available, skip */ }
+
+  let shuttingDown = false;
+
+  async function gracefulShutdown(): Promise<void> {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log('[shutdown] Gracefully stopping...');
+    if (worker && !worker.closed) {
+      worker.close();
+    }
+    process.exit(0);
+  }
+
+  process.on('SIGINT', gracefulShutdown);
+  process.on('SIGTERM', gracefulShutdown);
+
   process.on('uncaughtException', (err) => {
     console.error('[FATAL] Uncaught exception:', err);
+    setImmediate(() => { process.exit(1); });
   });
   process.on('unhandledRejection', (reason) => {
     console.error('[FATAL] Unhandled rejection:', reason);
+    setImmediate(() => { process.exit(1); });
   });
 
   mediasoup.setLogEventListeners({

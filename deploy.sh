@@ -38,6 +38,15 @@ if [ -n "$OLD_PID" ]; then
   sleep 2
 fi
 
+# Kill any orphan mediasoup workers
+ORPHAN_PIDS=$(pgrep -f "mediasoup-worker" 2>/dev/null || true)
+if [ -n "$ORPHAN_PIDS" ]; then
+  echo ""
+  echo ">>> Killing orphan mediasoup workers: $ORPHAN_PIDS"
+  echo "$ORPHAN_PIDS" | xargs kill -9 2>/dev/null || true
+  sleep 1
+fi
+
 # Start server
 echo ""
 echo ">>> Starting server..."
