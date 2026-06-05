@@ -3,7 +3,7 @@ import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as mediasoup from 'mediasoup';
 import { config } from './config';
@@ -516,6 +516,65 @@ async function main(): Promise<void> {
     const content = getLogContent(tail || undefined);
     res.type('text/plain').send(content);
   });
+
+  app.post('/api/deploy', (req, res) => {
+    const token = (req.query.token as string) || '';
+    const deployToken = process.env.DEPLOY_TOKEN;
+    if (!deployToken || token !== deployToken) {
+      res.status(403).json({ error: 'Invalid deploy token' });
+      return;
+    }
+
+    res.json({ status: 'deploying' });
+
+    setImmediate(() => {
+      doDeploy().catch((err) => {
+        console.error('[deploy] Failed:', err);
+      });
+    });
+  });
+
+  async function doDeploy(): Promise<void> {
+    const projectRoot = path.resolve(__dirname, '..', '..');
+
+    try {
+      const result = execSync('pgrep -f mediasoup-worker || true', { encoding: 'utf8', timeout: 5000 }).trim();
+      if (result) {
+        const pids = result.split('\n').filter(Boolean);
+        console.log(`[deploy] Killing ${pids.length} orphan mediasoup-worker(s): ${pids.join(', ')}`);
+        for (const pid of pids) {
+          try { process.kill(parseInt(pid, 10), 'SIGKILL'); } catch {}
+        }
+      }
+    } catch { /* pgrep not available, skip */ }
+
+    console.log('[deploy] Running git pull...');
+    execSync('git pull', { cwd: projectRoot, stdio: 'inherit', timeout: 30000 });
+
+    console.log('[deploy] Building server...');
+    execSync('npm run build', { cwd: path.join(projectRoot, 'server'), stdio: 'inherit', timeout: 60000 });
+
+    console.log('[deploy] Building client...');
+    execSync('npm run build', { cwd: path.join(projectRoot, 'client'), stdio: 'inherit', timeout: 60000 });
+
+    console.log('[deploy] Spawning new server process...');
+    const child = spawn('node', ['dist/index.js'], {
+      cwd: path.join(projectRoot, 'server'),
+      detached: true,
+      stdio: 'ignore',
+      env: { ...process.env },
+    });
+    child.unref();
+
+    console.log('[deploy] Graceful shutdown...');
+    if (worker && !worker.closed) {
+      worker.close();
+    }
+
+    setTimeout(() => {
+      process.exit(0);
+    }, 1000);
+  }
 
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
   app.use(express.static(clientDist));
