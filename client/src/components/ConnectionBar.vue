@@ -9,6 +9,7 @@
       <button class="btn btn-copy-whip" @click="copyWhipUrl" :title="whipUrl">
         {{ copied ? '已复制!' : '复制 WHIP 地址' }}
       </button>
+      <div class="spacer"></div>
       <div class="settings-wrapper">
         <button class="btn btn-settings" @click="showSettings = !showSettings" title="设置">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -30,7 +31,6 @@
           </div>
         </div>
       </div>
-      <button class="btn btn-disconnect" @click="$emit('disconnect')">断开</button>
     </div>
   </div>
 </template>
@@ -45,7 +45,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  disconnect: [];
   'update-display-name': [name: string];
 }>();
 
@@ -149,6 +148,10 @@ const statusText = computed(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 1;
+}
+.spacer {
+  flex: 1;
 }
 input {
   padding: 6px 12px;
@@ -185,13 +188,6 @@ input::placeholder {
 }
 .btn-connect:hover:not(:disabled) {
   background: #651fff;
-}
-.btn-disconnect {
-  background: rgba(244, 67, 54, 0.2);
-  color: #f44336;
-}
-.btn-disconnect:hover {
-  background: rgba(244, 67, 54, 0.35);
 }
 .btn-copy-whip {
   background: rgba(76, 175, 80, 0.2);
