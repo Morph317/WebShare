@@ -557,23 +557,32 @@ async function main(): Promise<void> {
     console.log('[deploy] Building client...');
     execSync('npm run build', { cwd: path.join(projectRoot, 'client'), stdio: 'inherit', timeout: 60000 });
 
-    console.log('[deploy] Spawning new server process...');
-    const child = spawn('node', ['dist/index.js'], {
-      cwd: path.join(projectRoot, 'server'),
-      detached: true,
-      stdio: 'ignore',
-      env: { ...process.env },
-    });
-    child.unref();
+    console.log('[deploy] Closing HTTP server to release port...');
+    server.close();
 
-    console.log('[deploy] Graceful shutdown...');
+    console.log('[deploy] Closing mediasoup worker...');
     if (worker && !worker.closed) {
       worker.close();
     }
 
-    setTimeout(() => {
-      process.exit(0);
-    }, 1000);
+    console.log('[deploy] Spawning new server process...');
+    const deployLog = path.join(projectRoot, 'server', 'logs', 'deploy.log');
+    const logDir = path.dirname(deployLog);
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const outFd = fs.openSync(deployLog, 'a');
+    const child = spawn('node', ['dist/index.js'], {
+      cwd: path.join(projectRoot, 'server'),
+      detached: true,
+      stdio: ['ignore', outFd, outFd],
+      env: { ...process.env },
+    });
+    child.unref();
+    fs.closeSync(outFd);
+
+    console.log('[deploy] New process spawned, exiting...');
+    process.exit(0);
   }
 
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
