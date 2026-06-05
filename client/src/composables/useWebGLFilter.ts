@@ -81,6 +81,90 @@ export const FILTER_PRESETS: FilterPreset[] = [
     gl_FragColor = color;
 }`,
   },
+  {
+    name: 'ASCII 艺术',
+    source: `bool A[64] = bool[64](false,false,false,false,false,false,false,false,false,false,false,true,true,false,false,false,false,false,true,false,false,true,false,false,false,true,false,false,false,false,true,false,false,true,true,true,true,true,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,false,false,false,false,false,false,false);
+bool B[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,true,false,false,false,true,false,false,false,false,true,false,false,true,true,true,true,true,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,true,true,true,true,false,false,false,false,false,false,false,false,false,false);
+bool C[64] = bool[64](false,false,false,false,false,false,false,false,false,false,true,true,true,true,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,false,true,true,true,true,false,false,false,false,false,false,false,false,false,false);
+bool D[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,false,false,false,false,true,false,false,false,true,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,true,false,false,false,true,true,true,true,false,false,false,false,false,false,false,false,false,false,false);
+bool E[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,false,false,true,false,false,false,false,false,false,false,true,true,true,true,true,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,true,true,true,true,true,false,false,false,false,false,false,false,false,false);
+bool F[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,false,false,true,false,false,false,false,false,false,false,true,true,true,true,true,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false,false);
+bool G[64] = bool[64](false,false,false,false,false,false,false,false,false,false,true,true,true,true,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,true,true,true,false,false,true,false,false,false,false,true,false,false,false,true,true,true,true,false,false,false,false,false,false,false,false,false,false);
+bool H[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,true,true,true,true,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,false,false,false,false,false,false,false);
+bool I[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,true,true,true,true,true,true,false,false,false,false,false,false,false,false,false);
+bool J[64] = bool[64](false,false,false,false,false,false,false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,true,false,false,false,true,false,false,false,false,true,true,true,false,false,false,false,false,false,false,false,false,false,false);
+bool K[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,true,false,false,false,true,false,false,true,false,false,false,false,true,false,true,false,false,false,false,false,true,true,true,false,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,false,true,false,false,false,false,false,false,false,false,false,false);
+bool L[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,true,true,true,true,true,false,false,false,false,false,false,false,false,false);
+bool M[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,true,true,false,false,true,true,false,false,true,false,true,true,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,false,false,false,false,false,false,false);
+bool N[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,true,true,false,false,false,true,false,false,true,false,true,false,false,true,false,false,true,false,false,true,false,true,false,false,true,false,false,false,true,true,false,false,true,false,false,false,false,true,false,false,false,false,false,false,false,false,false);
+bool O[64] = bool[64](false,false,false,false,false,false,false,false,false,false,true,true,true,true,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,false,true,true,true,true,false,false,false,false,false,false,false,false,false,false);
+bool P[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,true,false,false,false,true,false,false,false,false,true,false,false,true,true,true,true,true,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false,false);
+bool Q[64] = bool[64](false,false,false,false,false,false,false,false,false,false,true,true,true,true,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,true,false,true,false,false,true,false,false,false,true,false,false,false,false,true,true,true,true,false,false,false,false,false,false,false,false,false,false);
+bool R[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,true,false,false,false,true,false,false,false,false,true,false,false,true,true,true,true,true,false,false,false,true,false,false,true,false,false,false,false,true,false,false,false,true,false,false,false,true,false,false,false,false,true,false,false,false,false,false,false,false,false,false);
+bool S[64] = bool[64](false,false,false,false,false,false,false,false,false,false,true,true,true,true,false,false,false,true,false,false,false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,false,false,true,false,false,false,true,false,false,false,false,true,false,false,false,true,true,true,true,false,false,false,false,false,false,false,false,false,false);
+bool T[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,false,false,false,false,false);
+bool U[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,false,true,true,true,true,false,false,false,false,false,false,false,false,false,false);
+bool V[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,false,false,false,false,false);
+bool W[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,false,false,false,true,false,false,true,false,true,true,false,true,false,false,true,true,false,false,true,true,false,false,true,false,false,false,false,true,false,false,false,false,false,false,false,false,false);
+bool X[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,false,true,false,false,true,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,true,false,false,true,false,false,false,true,false,false,false,false,true,false,false,false,false,false,false,false,false,false);
+bool Y[64] = bool[64](false,false,false,false,false,false,false,false,false,true,false,false,false,false,true,false,false,false,true,false,false,true,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,true,true,false,false,false,false,false,false,false,false,false,false,false);
+bool Z[64] = bool[64](false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,false,false,false,false,false,false,true,false,false,false,false,false,false,true,false,false,false,false,false,false,true,false,false,false,false,false,false,true,false,false,false,false,false,false,true,true,true,true,true,true,false,false,false,false,false,false,false,false,false);
+
+bool getGrid(int c, int idx) {
+    if (c == 0) return A[idx]; if (c == 1) return B[idx]; if (c == 2) return C[idx];
+    if (c == 3) return D[idx]; if (c == 4) return E[idx]; if (c == 5) return F[idx];
+    if (c == 6) return G[idx]; if (c == 7) return H[idx]; if (c == 8) return I[idx];
+    if (c == 9) return J[idx]; if (c == 10) return K[idx]; if (c == 11) return L[idx];
+    if (c == 12) return M[idx]; if (c == 13) return N[idx]; if (c == 14) return O[idx];
+    if (c == 15) return P[idx]; if (c == 16) return Q[idx]; if (c == 17) return R[idx];
+    if (c == 18) return S[idx]; if (c == 19) return T[idx]; if (c == 20) return U[idx];
+    if (c == 21) return V[idx]; if (c == 22) return W[idx]; if (c == 23) return X[idx];
+    if (c == 24) return Y[idx];
+    return Z[idx];
+}
+
+float testScore(bool store[64], int ci) {
+    float score = 0.0;
+    for (int x = 0; x < 8; x++) {
+        for (int y = 0; y < 8; y++) {
+            int idx = x + y * 8;
+            if (store[idx] == getGrid(ci, idx)) score += 1.0; else score -= 1.0;
+        }
+    }
+    return score;
+}
+
+int bestChar(bool store[64]) {
+    int best = 0;
+    float bestScore = -9999.0;
+    for (int c = 0; c < 26; c++) {
+        float s = testScore(store, c);
+        if (s > bestScore) { bestScore = s; best = c; }
+    }
+    return best;
+}
+
+void main() {
+    vec2 blockCoord = floor(gl_FragCoord.xy / 8.0) * 8.0;
+    vec2 uv = blockCoord / u_resolution;
+    vec2 f = floor(mod(gl_FragCoord.xy, 8.0));
+
+    vec4 og = texture2D(u_texture, uv);
+    float ref = length(og.rgb) / 1.1 + 0.1;
+
+    bool stored[64];
+    for (float y = 0.0; y < 8.0; y++) {
+        for (float x = 0.0; x < 8.0; x++) {
+            float bright = length(texture2D(u_texture, uv + vec2(x, y) / u_resolution).rgb);
+            stored[int(x + y * 8.0)] = bright > ref;
+        }
+    }
+
+    int c = bestChar(stored);
+    bool on = getGrid(c, int(f.x) + int(f.y) * 8);
+    gl_FragColor = on ? vec4(0.0, 1.8, 0.0, 1.0) : vec4(0.0, 0.0, 0.0, 1.0);
+}`,
+  },
 ];
 
 export const DEFAULT_FILTER = FILTER_PRESETS[0].source;
