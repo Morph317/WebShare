@@ -5,9 +5,10 @@
       :room-id="connectedRoomId"
       :display-name="displayName"
       :filter-enabled="filterEnabled"
-      @disconnect="handleDisconnect"
+      :filter-editor-visible="filterEditorVisible"
       @update-display-name="handleUpdateDisplayName"
-      @toggle-filter="toggleFilter"
+      @toggle-filter="toggleFilterEnabled"
+      @toggle-filter-editor="toggleFilterEditor"
     />
 
     <div class="main-layout" v-if="state === 'connected'">
@@ -23,17 +24,19 @@
         :members="members"
         :filter-enabled="filterEnabled"
         :filter-source="filterSource"
+        :filter-editor-visible="filterEditorVisible"
         @start-share="handleStartShare"
         @stop-share="handleStopShare"
         @set-active-stream="setActiveStream"
         @filter-error="filterError = $event"
+        @open-filter-editor="filterEditorVisible = true"
       />
       <FilterEditor
-        v-if="filterEnabled"
+        v-if="filterEnabled && filterEditorVisible"
         :code="filterSource"
         :error="filterError"
         @update:code="handleFilterUpdate"
-        @close="toggleFilter"
+        @close="filterEditorVisible = false"
       />
     </div>
 
@@ -82,15 +85,25 @@ const displayName = ref(localStorage.getItem('displayName') || getDeviceName());
 const filterEnabled = ref(localStorage.getItem('filterEnabled') === 'true');
 const filterSource = ref(localStorage.getItem('filterSource') || DEFAULT_FILTER);
 const filterError = ref('');
+const filterEditorVisible = ref(false);
 
 function handleUpdateDisplayName(name: string): void {
   displayName.value = name;
   localStorage.setItem('displayName', name);
 }
 
-function toggleFilter(): void {
+function toggleFilterEnabled(): void {
   filterEnabled.value = !filterEnabled.value;
   localStorage.setItem('filterEnabled', filterEnabled.value.toString());
+  if (filterEnabled.value) {
+    filterEditorVisible.value = true;
+  } else {
+    filterEditorVisible.value = false;
+  }
+}
+
+function toggleFilterEditor(): void {
+  filterEditorVisible.value = !filterEditorVisible.value;
 }
 
 function handleFilterUpdate(code: string): void {

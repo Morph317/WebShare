@@ -36,6 +36,13 @@
               <span class="toggle-knob"></span>
             </span>
           </label>
+          <button
+            v-if="filterEnabled"
+            class="btn btn-edit-filter"
+            @click="$emit('toggle-filter-editor')"
+          >
+            {{ filterEditorVisible ? '隐藏代码' : '编辑代码' }}
+          </button>
         </div>
       </div>
     </div>
@@ -50,11 +57,13 @@ const props = defineProps<{
   roomId: string;
   displayName: string;
   filterEnabled: boolean;
+  filterEditorVisible: boolean;
 }>();
 
 const emit = defineEmits<{
   'update-display-name': [name: string];
   'toggle-filter': [];
+  'toggle-filter-editor': [];
 }>();
 
 const copied = ref(false);
@@ -307,6 +316,21 @@ input::placeholder {
 }
 .toggle-switch.on .toggle-knob {
   transform: translateX(16px);
+}
+.btn-edit-filter {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 5px 0;
+  background: rgba(124, 77, 255, 0.15);
+  color: #b388ff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-edit-filter:hover {
+  background: rgba(124, 77, 255, 0.3);
 }
 .settings-actions {
   display: flex;

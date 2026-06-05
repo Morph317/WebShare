@@ -62,6 +62,14 @@
         <div class="main-video-label">
           {{ getPeerName(activeStream.peerId) }}
         </div>
+        <button
+          v-if="filterEnabled && !filterEditorVisible"
+          class="btn-edit-filter"
+          @click="$emit('open-filter-editor')"
+          title="编辑滤镜"
+        >
+          编辑滤镜
+        </button>
       </div>
       <div v-else class="no-stream">
         <div class="no-stream-icon">📺</div>
@@ -85,6 +93,7 @@ const props = defineProps<{
   members: PeerInfo[];
   filterEnabled: boolean;
   filterSource: string;
+  filterEditorVisible: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -92,6 +101,7 @@ const emit = defineEmits<{
   stopShare: [];
   setActiveStream: [producerId: string];
   'filter-error': [error: string];
+  'open-filter-editor': [];
 }>();
 
 const mainVideoRef = ref<HTMLVideoElement | null>(null);
@@ -418,6 +428,22 @@ onUnmounted(() => {
   font-size: 12px;
   color: #ccc;
   border-radius: 4px;
+}
+.btn-edit-filter {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 5px 12px;
+  background: rgba(124, 77, 255, 0.75);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 10;
+}
+.btn-edit-filter:hover {
+  background: rgba(124, 77, 255, 0.9);
 }
 .no-stream {
   text-align: center;
