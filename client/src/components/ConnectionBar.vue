@@ -9,24 +9,53 @@
       <button class="btn btn-copy-whip" @click="copyWhipUrl" :title="whipUrl">
         {{ copied ? '已复制!' : '复制 WHIP 地址' }}
       </button>
+      <div class="settings-wrapper">
+        <button class="btn btn-settings" @click="showSettings = !showSettings" title="设置">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+        </button>
+        <div class="settings-dropdown" v-if="showSettings">
+          <label class="settings-label">展示名</label>
+          <input
+            class="settings-input"
+            v-model="editName"
+            placeholder="输入展示名..."
+            @keyup.enter="saveDisplayName"
+          />
+          <div class="settings-actions">
+            <button class="btn btn-save" @click="saveDisplayName">保存</button>
+            <button class="btn btn-cancel" @click="cancelEdit">取消</button>
+          </div>
+        </div>
+      </div>
       <button class="btn btn-disconnect" @click="$emit('disconnect')">断开</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
   state: 'disconnected' | 'connecting' | 'connected';
   roomId: string;
+  displayName: string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   disconnect: [];
+  'update-display-name': [name: string];
 }>();
 
 const copied = ref(false);
+const showSettings = ref(false);
+const editName = ref(props.displayName);
+
+watch(() => props.displayName, (val) => {
+  editName.value = val;
+});
 
 const whipUrl = computed(() => {
   const host = window.location.hostname;
@@ -51,6 +80,19 @@ async function copyWhipUrl(): Promise<void> {
     copied.value = true;
     setTimeout(() => { copied.value = false; }, 2000);
   }
+}
+
+function saveDisplayName(): void {
+  const name = editName.value.trim();
+  if (name) {
+    emit('update-display-name', name);
+    showSettings.value = false;
+  }
+}
+
+function cancelEdit(): void {
+  editName.value = props.displayName;
+  showSettings.value = false;
 }
 
 const statusClass = computed(() => {
@@ -165,5 +207,89 @@ input::placeholder {
   background: rgba(124, 77, 255, 0.2);
   color: #b388ff;
   border-radius: 4px;
+}
+.settings-wrapper {
+  position: relative;
+}
+.btn-settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.06);
+  color: #aaa;
+  border-radius: 6px;
+}
+.btn-settings:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #e0e0e0;
+}
+.settings-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: #1e1e32;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 14px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.settings-label {
+  display: block;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 6px;
+}
+.settings-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 10px;
+}
+.settings-input:focus {
+  border-color: #7c4dff;
+}
+.settings-input::placeholder {
+  color: #555;
+}
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.btn-save {
+  padding: 5px 14px;
+  background: #7c4dff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-save:hover {
+  background: #651fff;
+}
+.btn-cancel {
+  padding: 5px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #aaa;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #e0e0e0;
 }
 </style>

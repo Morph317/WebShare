@@ -3,7 +3,9 @@
     <ConnectionBar
       :state="state"
       :room-id="connectedRoomId"
+      :display-name="displayName"
       @disconnect="handleDisconnect"
+      @update-display-name="handleUpdateDisplayName"
     />
 
     <div class="main-layout" v-if="state === 'connected'">
@@ -62,6 +64,12 @@ const {
 } = mediasoup;
 
 const connectedRoomId = ref('');
+const displayName = ref(localStorage.getItem('displayName') || getDeviceName());
+
+function handleUpdateDisplayName(name: string): void {
+  displayName.value = name;
+  localStorage.setItem('displayName', name);
+}
 
 function getDeviceName(): string {
   const ua = navigator.userAgent;
@@ -82,7 +90,7 @@ async function autoConnect(): Promise<void> {
     const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
     const wsUrl = `${wsProtocol}://${location.host || 'localhost:8080'}/ws`;
     const roomId = (new URLSearchParams(location.search).get('roomId')) || 'default';
-    await signaling.connect(wsUrl, roomId, getDeviceName());
+    await signaling.connect(wsUrl, roomId, displayName.value);
     connectedRoomId.value = roomId;
     await initDevice();
   } catch (err) {
