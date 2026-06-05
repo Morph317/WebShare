@@ -4,8 +4,10 @@
       :state="state"
       :room-id="connectedRoomId"
       :display-name="displayName"
+      :filter-enabled="filterEnabled"
       @disconnect="handleDisconnect"
       @update-display-name="handleUpdateDisplayName"
+      @toggle-filter="toggleFilter"
     />
 
     <div class="main-layout" v-if="state === 'connected'">
@@ -19,9 +21,19 @@
         :is-sharing="isSharing"
         :can-share="state === 'connected'"
         :members="members"
+        :filter-enabled="filterEnabled"
+        :filter-source="filterSource"
         @start-share="handleStartShare"
         @stop-share="handleStopShare"
         @set-active-stream="setActiveStream"
+        @filter-error="filterError = $event"
+      />
+      <FilterEditor
+        v-if="filterEnabled"
+        :code="filterSource"
+        :error="filterError"
+        @update:code="handleFilterUpdate"
+        @close="toggleFilter"
       />
     </div>
 
@@ -38,6 +50,8 @@ import { useMediasoup } from './composables/useMediasoup';
 import ConnectionBar from './components/ConnectionBar.vue';
 import MembersPanel from './components/MembersPanel.vue';
 import VideoArea from './components/VideoArea.vue';
+import FilterEditor from './components/FilterEditor.vue';
+import { DEFAULT_FILTER } from './composables/useWebGLFilter';
 
 const signaling = useSignaling();
 const mediasoup = useMediasoup(signaling);
@@ -65,11 +79,24 @@ const {
 
 const connectedRoomId = ref('');
 const displayName = ref(localStorage.getItem('displayName') || getDeviceName());
+const filterEnabled = ref(localStorage.getItem('filterEnabled') === 'true');
+const filterSource = ref(localStorage.getItem('filterSource') || DEFAULT_FILTER);
+const filterError = ref('');
 
 function handleUpdateDisplayName(name: string): void {
   displayName.value = name;
   localStorage.setItem('displayName', name);
 }
+
+function toggleFilter(): void {
+  filterEnabled.value = !filterEnabled.value;
+  localStorage.setItem('filterEnabled', filterEnabled.value.toString());
+}
+
+function handleFilterUpdate(code: string): void {
+  filterSource.value = code;
+  localStorage.setItem('filterSource', code);
+} 
 
 function getDeviceName(): string {
   const ua = navigator.userAgent;

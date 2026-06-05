@@ -51,7 +51,9 @@
           autoplay
           playsinline
           class="main-video"
+          :style="{ opacity: filterCanvasEl ? '0' : '1' }"
         ></video>
+        <div ref="filterOverlayRef" class="filter-overlay" v-show="filterCanvasEl"></div>
         <div class="video-overlay">
           <button class="btn-fullscreen" @click="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '全屏'">
             {{ isFullscreen ? '⛶' : '⛶' }}
@@ -73,6 +75,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { RemoteStream, PeerInfo } from '../types';
+import { useWebGLFilter, DEFAULT_FILTER } from '../composables/useWebGLFilter';
 
 const props = defineProps<{
   remoteStreams: Map<string, RemoteStream>;
@@ -80,17 +83,24 @@ const props = defineProps<{
   isSharing: boolean;
   canShare: boolean;
   members: PeerInfo[];
+  filterEnabled: boolean;
+  filterSource: string;
 }>();
 
 const emit = defineEmits<{
   startShare: [];
   stopShare: [];
   setActiveStream: [producerId: string];
+  'filter-error': [error: string];
 }>();
 
 const mainVideoRef = ref<HTMLVideoElement | null>(null);
+const filterOverlayRef = ref<HTMLDivElement | null>(null);
 const videoRefs: Map<string, HTMLVideoElement> = new Map();
 const isFullscreen = ref(false);
+const filterCanvasEl = ref<HTMLCanvasElement | null>(null);
+
+const filter = useWebGLFilter();
 
 function toggleFullscreen(): void {
   const el = mainVideoRef.value;
@@ -187,6 +197,54 @@ watch(activeStream, (stream) => {
     mainVideoRef.value.srcObject = null;
   }
 }, { flush: 'post' });
+
+// Filter management
+function stopFilter(): void {
+  if (filterCanvasEl.value && filterOverlayRef.value && filterCanvasEl.value.parentElement === filterOverlayRef.value) {
+    filterOverlayRef.value.removeChild(filterCanvasEl.value);
+  }
+  filterCanvasEl.value = null;
+  filter.stop();
+}
+
+function startFilter(): void {
+  if (!props.filterEnabled || !activeStream.value || !mainVideoRef.value) return;
+  if (filter.isActive.value) {
+    stopFilter();
+  }
+  const canvas = filter.start(mainVideoRef.value);
+  if (canvas && filterOverlayRef.value) {
+    filterOverlayRef.value.appendChild(canvas);
+    filterCanvasEl.value = canvas;
+  }
+  if (props.filterSource) {
+    filter.setShader(props.filterSource);
+  }
+}
+
+watch(
+  () => [props.filterEnabled, activeStream.value] as const,
+  ([enabled, stream]) => {
+    if (enabled && stream) {
+      startFilter();
+    } else {
+      stopFilter();
+    }
+  },
+  { flush: 'post' },
+);
+
+// Recompile when source changes
+watch(() => props.filterSource, (src) => {
+  if (filter.isActive.value) {
+    filter.setShader(src);
+  }
+});
+
+// Forward compile errors
+watch(() => filter.compileError.value, (err) => {
+  emit('filter-error', err);
+});
 
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -314,6 +372,19 @@ onUnmounted(() => {
   background: #000;
 }
 .main-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.filter-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.filter-overlay canvas {
   width: 100%;
   height: 100%;
   object-fit: contain;

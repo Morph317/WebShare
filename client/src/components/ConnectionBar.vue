@@ -29,6 +29,13 @@
             <button class="btn btn-save" @click="saveDisplayName">保存</button>
             <button class="btn btn-cancel" @click="cancelEdit">取消</button>
           </div>
+          <div class="settings-divider"></div>
+          <label class="settings-toggle" @click="$emit('toggle-filter')">
+            <span class="toggle-label">WebGL 滤镜</span>
+            <span class="toggle-switch" :class="{ on: filterEnabled }">
+              <span class="toggle-knob"></span>
+            </span>
+          </label>
         </div>
       </div>
     </div>
@@ -42,10 +49,12 @@ const props = defineProps<{
   state: 'disconnected' | 'connecting' | 'connected';
   roomId: string;
   displayName: string;
+  filterEnabled: boolean;
 }>();
 
 const emit = defineEmits<{
   'update-display-name': [name: string];
+  'toggle-filter': [];
 }>();
 
 const copied = ref(false);
@@ -257,6 +266,47 @@ input::placeholder {
 }
 .settings-input::placeholder {
   color: #555;
+}
+.settings-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 10px 0;
+}
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.toggle-label {
+  font-size: 12px;
+  color: #aaa;
+}
+.toggle-switch {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-switch.on {
+  background: #7c4dff;
+}
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+}
+.toggle-switch.on .toggle-knob {
+  transform: translateX(16px);
 }
 .settings-actions {
   display: flex;
