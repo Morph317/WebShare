@@ -182,7 +182,6 @@ export function createWhipHandler(
           type: sha256Fp.algorithm,
           hash: sha256Fp.value,
         };
-        media.setup = 'active';
         media.ssrcGroups = undefined;
         media.ssrcs = undefined;
         media.msid = undefined;
@@ -241,7 +240,8 @@ export function createWhipHandler(
       // Set BUNDLE group
       answerObject.groups = [{ type: 'BUNDLE', mids: bundleMids }];
 
-      const answerSdp = sdpTransform.write(answerObject);
+      const answerSdp = sdpTransform.write(answerObject)
+        .replace('t=0 0\r\n', 't=0 0\r\na=ice-lite\r\n');
       console.log(`[whip] answer SDP:\n${answerSdp}`);
 
       // Create producers for each media kind
@@ -290,14 +290,15 @@ export function createWhipHandler(
         }
       }
 
+      const locationUrl = `/api/whip/${transport.id}`;
       res.status(201)
         .set({
           'Content-Type': 'application/sdp',
-          'Location': `/api/whip/${transport.id}`,
+          'Location': locationUrl,
         })
         .send(answerSdp);
 
-      console.log(`[whip] 201 response sent, Location: /api/whip/${transport.id}`);
+      console.log(`[whip] 201 response sent, Location: ${locationUrl}`);
 
       transport.appData = { peer, room, transport, peerId };
     } catch (err) {
