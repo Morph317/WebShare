@@ -485,6 +485,7 @@ async function main(): Promise<void> {
   app.delete('/api/whip/:id', (req, res) => {
     const transportId = req.params.id as string;
     const transport = transportMap.get(transportId);
+    console.log(`[whip DELETE] transport=${transportId} found=${!!transport}`);
     if (transport) {
       transport.close();
       transportMap.delete(transportId);

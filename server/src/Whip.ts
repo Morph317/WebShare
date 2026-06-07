@@ -122,12 +122,18 @@ export function createWhipHandler(
       peer.producerTransport = transport;
       transportMap.set(transport.id, transport);
 
-      transport.on('@close', () => cleanup(peer));
+      transport.on('@close', () => {
+        console.log(`[whip transport @close] peer=${peerId} transport=${transport.id}`);
+        cleanup(peer);
+      });
       transport.on('dtlsstatechange', (dtlsState) => {
         console.log(`[whip dtls] peer=${peerId} -> ${dtlsState}`);
       });
       transport.on('icestatechange', (iceState) => {
         console.log(`[whip ice] peer=${peerId} -> ${iceState}`);
+      });
+      transport.on('sctpstatechange', (sctpState) => {
+        console.log(`[whip sctp] peer=${peerId} -> ${sctpState}`);
       });
 
       // Connect transport with remote DTLS params from offer
@@ -252,7 +258,7 @@ export function createWhipHandler(
             offerMediaObject: mediaSection,
             codecs: sendingRtpParameters.codecs,
           });
-        console.log(`[whip] ${kind} rtpParams: mid=${sendingRtpParameters.mid}, encodings=${JSON.stringify(sendingRtpParameters.encodings)}`);
+        console.log(`[whip] ${kind} rtpParams: mid=${sendingRtpParameters.mid}, encodings=${JSON.stringify(sendingRtpParameters.encodings)}, codecs=${JSON.stringify(sendingRtpParameters.codecs?.map((c: any) => ({mimeType:c.mimeType,payloadType:c.payloadType,clockRate:c.clockRate,channels:c.channels,parameters:c.parameters}))||[])}, headerExtensions=${JSON.stringify(sendingRtpParameters.headerExtensions?.map((h: any) => ({uri:h.uri,id:h.id,encrypt:h.encrypt}))||[])}`);
 
         try {
           const producer = await transport.produce({
@@ -290,6 +296,8 @@ export function createWhipHandler(
           'Location': `/api/whip/${transport.id}`,
         })
         .send(answerSdp);
+
+      console.log(`[whip] 201 response sent, Location: /api/whip/${transport.id}`);
 
       transport.appData = { peer, room, transport, peerId };
     } catch (err) {
