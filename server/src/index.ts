@@ -471,6 +471,16 @@ async function main(): Promise<void> {
 
   // WHIP endpoint — raw SDP body, before static middleware
   const whipHandler = createWhipHandler(rooms, peerMap, nextPeerId, worker, transportMap);
+
+  app.options('/api/whip', (_req, res) => {
+    res.status(204)
+      .set({
+        'Access-Control-Allow-Methods': 'OPTIONS, POST, DELETE',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Origin': '*',
+      })
+      .end();
+  });
   app.post('/api/whip', express.text({ type: 'application/sdp', limit: '64kb' }), async (req, res) => {
     pendingRequestCount++;
     const transportCountBefore = transportMap.size;

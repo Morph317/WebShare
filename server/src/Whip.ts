@@ -112,6 +112,7 @@ export function createWhipHandler(
       const transport = await room.router.createWebRtcTransport({
         ...config.mediasoup.webRtcTransport,
         iceConsentTimeout: 30,
+        enableSctp: false,
       }).catch((err) => {
         console.error(`[whip] transport creation failed for ${peerId}:`, err.message);
         cleanup(peer);
@@ -290,7 +291,9 @@ export function createWhipHandler(
         }
       }
 
-      const locationUrl = `/api/whip/${transport.id}`;
+      const host = req.get('host') || 'localhost';
+      const proto = (req.get('x-forwarded-proto') || req.protocol || 'http').split(',')[0].trim();
+      const locationUrl = `${proto}://${host}/api/whip/${transport.id}`;
       res.status(201)
         .set({
           'Content-Type': 'application/sdp',
