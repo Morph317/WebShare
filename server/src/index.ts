@@ -406,22 +406,23 @@ async function handleMessage(peer: Peer, raw: string): Promise<void> {
 }
 
 function aggressiveCleanup(): void {
+  // Only kill orphan mediasoup-workers, NOT node processes (would kill deploy itself)
   try {
-    execSync('pkill -9 -f mediasoup-worker 2>/dev/null; pkill -9 -f "node.*dist/index" 2>/dev/null; true', { timeout: 5000 });
+    const result = execSync('pgrep -f mediasoup-worker || true', { encoding: 'utf8', timeout: 5000 }).trim();
+    if (result) {
+      const pids = result.split('\n').filter(Boolean);
+      console.log(`[cleanup] Killing ${pids.length} orphan mediasoup-worker(s): ${pids.join(', ')}`);
+      for (const pid of pids) {
+        try { process.kill(parseInt(pid, 10), 'SIGKILL'); } catch {}
+      }
+    }
+  } catch {}
+  // Free port 8080 if still bound (skip our own PID)
+  try {
+    execSync(`fuser -k 8080/tcp 2>/dev/null; true`, { timeout: 5000 });
   } catch {}
   try {
-    execSync('fuser -k 8080/tcp 2>/dev/null; true', { timeout: 5000 });
-  } catch {}
-  // Wait for ports to be released
-  try {
-    execSync('sleep 2', { timeout: 5000 });
-  } catch {}
-
-  // Log remaining port usage for debugging
-  try {
-    const rtcRange = `${config.mediasoup.worker.rtcMinPort}-${config.mediasoup.worker.rtcMaxPort}`;
-    const ssResult = execSync(`ss -uln sport >= :${config.mediasoup.worker.rtcMinPort} and sport <= :${config.mediasoup.worker.rtcMaxPort} 2>/dev/null | wc -l || true`, { encoding: 'utf8', timeout: 5000 }).trim();
-    console.log(`[cleanup] UDP sockets in range ${rtcRange}: ${ssResult}`);
+    execSync('sleep 1', { timeout: 3000 });
   } catch {}
 }
 
@@ -555,8 +556,17 @@ async function main(): Promise<void> {
   async function doDeploy(): Promise<void> {
     const projectRoot = path.resolve(__dirname, '..', '..');
 
-    console.log('[deploy] Running aggressive cleanup first...');
-    aggressiveCleanup();
+    // Kill orphan mediasoup workers only (don't kill node processes or port 8080 during deploy)
+    try {
+      const result = execSync('pgrep -f mediasoup-worker || true', { encoding: 'utf8', timeout: 5000 }).trim();
+      if (result) {
+        const pids = result.split('\n').filter(Boolean);
+        console.log(`[deploy] Killing ${pids.length} orphan mediasoup-worker(s): ${pids.join(', ')}`);
+        for (const pid of pids) {
+          try { process.kill(parseInt(pid, 10), 'SIGKILL'); } catch {}
+        }
+      }
+    } catch {}
 
     console.log('[deploy] Running git pull...');
     execSync('git pull', { cwd: projectRoot, stdio: 'inherit', timeout: 30000 });
