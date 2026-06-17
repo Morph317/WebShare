@@ -17,6 +17,16 @@ export function createWhipHandler(
   worker: mediasoup.types.Worker,
   transportMap: Map<string, mediasoup.types.WebRtcTransport>,
 ) {
+  function scheduleStats(producer: mediasoup.types.Producer, kind: string, delayMs: number): void {
+    setTimeout(async () => {
+      try {
+        if (producer.closed) return;
+        const stats = await producer.getStats();
+        console.log(`[whip producer stats @${delayMs/1000}s] ${kind} ${producer.id}:`, JSON.stringify(stats));
+      } catch {}
+    }, delayMs);
+  }
+
   async function initRoom(roomId: string): Promise<Room> {
     let room = rooms.get(roomId);
     if (!room) {
@@ -111,7 +121,7 @@ export function createWhipHandler(
 
       const transport = await room.router.createWebRtcTransport({
         ...config.mediasoup.webRtcTransport,
-        iceConsentTimeout: 30,
+        iceConsentTimeout: 0,
         enableSctp: false,
       }).catch((err) => {
         console.error(`[whip] transport creation failed for ${peerId}:`, err.message);
@@ -281,6 +291,12 @@ export function createWhipHandler(
               peer.id,
             );
           });
+
+          // Log producer stats to verify RTP flow
+          scheduleStats(producer, kind, 3000);
+          scheduleStats(producer, kind, 10000);
+          scheduleStats(producer, kind, 30000);
+          scheduleStats(producer, kind, 60000);
 
           room.broadcast(
             { type: 'new-producer', producerId: producer.id, peerId: peer.id, kind },
