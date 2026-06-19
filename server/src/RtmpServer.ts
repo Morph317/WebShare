@@ -64,21 +64,31 @@ export function createRtmpServer(): { nms: any; status: () => RtmpStatus } {
     console.log('[rtmp] connection closed');
   });
 
-  nms.on('prePublish', (_id: string, streamPath: string, _args: any) => {
-    console.log(`[rtmp] prePublish: path="${streamPath}" args=`, JSON.stringify(_args));
-    // node-media-server already validates stream path.
-    // If invalid, it logs an error and passes undefined streamPath.
-    // Just silently skip — no getSession() needed.
-  });
+  nms.on('prePublish', function(this: any, _id: any, streamPath: any, args: any) {
+    console.log(`[rtmp] prePublish id=${_id} path=${streamPath} args=${JSON.stringify(args)}`);
+  } as any);
 
-  nms.on('postPublish', (_id: string, streamPath: string, _args: any) => {
-    const url = `/hls${streamPath}/index.m3u8`;
-    console.log(`[rtmp] publishing started: ${streamPath} → HLS: ${url}`);
+  nms.on('postPublish', function(this: any, _id: any, streamPath: any, args: any) {
+    console.log(`[rtmp] postPublish id=${_id} path=${streamPath} args=${JSON.stringify(args)}`);
+
+    // node-media-server v2+ passes streamPath differently.
+    // If undefined, reconstruct from known app=live, name=default.
+    let path = streamPath;
+    if (!path || path === 'undefined') {
+      // Reconstruct from args or fallback to /live/default
+      const app = (args && args.app) || 'live';
+      const name = (args && args.name) || 'default';
+      path = `/${app}/${name}`;
+      console.log(`[rtmp] reconstructed path: ${path}`);
+    }
+
+    const url = `/hls${path}/index.m3u8`;
+    console.log(`[rtmp] HLS URL: ${url}`);
     state.isPublishing = true;
-    state.streamPath = streamPath;
+    state.streamPath = path;
     state.startTime = Date.now();
     state.hlsUrl = url;
-    rtmpEvents.emit('publish', { streamPath, hlsUrl: url });
+    rtmpEvents.emit('publish', { streamPath: path, hlsUrl: url });
   });
 
   nms.on('donePublish', (_id: string, streamPath: string, _args: any) => {
