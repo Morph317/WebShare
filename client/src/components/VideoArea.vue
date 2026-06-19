@@ -45,20 +45,21 @@
 
     <!-- Main video -->
     <div class="main-video-wrapper">
-      <div v-if="rtmpLive || activeStream" class="main-video-container">
+      <!-- RTMP video: always in DOM so ref is never null -->
+      <video
+        v-show="rtmpLive"
+        ref="rtmpVideoRef"
+        autoplay
+        playsinline
+        muted
+        class="main-video rtmp-video"
+      ></video>
+      <!-- Mediasoup / empty state (conditional) -->
+      <div v-if="activeStream && !rtmpLive" class="main-video-container">
         <video
-          v-show="!rtmpLive"
           ref="mainVideoRef"
           autoplay
           playsinline
-          class="main-video"
-        ></video>
-        <video
-          v-show="rtmpLive"
-          ref="rtmpVideoRef"
-          autoplay
-          playsinline
-          muted
           class="main-video"
         ></video>
         <div class="video-overlay">
@@ -66,17 +67,15 @@
             {{ isFullscreen ? '⛶' : '⛶' }}
           </button>
         </div>
-        <div class="main-video-label" v-if="activeStream">
+        <div class="main-video-label">
           {{ getPeerName(activeStream.peerId) }}
         </div>
-        <div class="main-video-label" v-else-if="rtmpLive">
-          OBS 推流中
-        </div>
       </div>
+      <div v-else-if="rtmpLive" class="no-stream" style="display:none"></div>
       <div v-else class="no-stream">
         <div class="no-stream-icon">📺</div>
-        <div class="no-stream-text">等待屏幕共享...</div>
-        <div class="no-stream-hint">点击上方"共享屏幕"开始，或等待其他成员共享</div>
+        <div class="no-stream-text">等待推流...</div>
+        <div class="no-stream-hint">OBS: rtmp://106.14.8.184:1935/live</div>
       </div>
     </div>
   </div>
