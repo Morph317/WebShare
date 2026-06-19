@@ -7,7 +7,7 @@ export interface RtmpStatus {
   isPublishing: boolean;
   streamPath: string;
   startTime: number | null;
-  bytesReceived: number;
+  hlsUrl: string;
 }
 
 export const rtmpEvents = new EventEmitter();
@@ -23,7 +23,7 @@ export function createRtmpServer(): { nms: any; status: () => RtmpStatus } {
     isPublishing: false,
     streamPath: '',
     startTime: null,
-    bytesReceived: 0,
+    hlsUrl: '',
   };
 
   const nms = new NodeMediaServer({
@@ -65,27 +65,20 @@ export function createRtmpServer(): { nms: any; status: () => RtmpStatus } {
   });
 
   nms.on('prePublish', (_id: string, streamPath: string, _args: any) => {
-    console.log(`[rtmp] prePublish: path="${streamPath}"`);
-    if (!streamPath) {
-      const session = (nms as any).getSession(_id);
-      if (session) session.reject();
-      return;
-    }
-    // Accept /live or /live/something
-    if (!streamPath.startsWith('/live')) {
-      const session = (nms as any).getSession(_id);
-      if (session) session.reject();
-      return;
-    }
+    console.log(`[rtmp] prePublish: path="${streamPath}" args=`, JSON.stringify(_args));
+    // node-media-server already validates stream path.
+    // If invalid, it logs an error and passes undefined streamPath.
+    // Just silently skip — no getSession() needed.
   });
 
   nms.on('postPublish', (_id: string, streamPath: string, _args: any) => {
-    console.log(`[rtmp] publishing started: ${streamPath}`);
+    const url = `/hls${streamPath}/index.m3u8`;
+    console.log(`[rtmp] publishing started: ${streamPath} → HLS: ${url}`);
     state.isPublishing = true;
     state.streamPath = streamPath;
     state.startTime = Date.now();
-    state.bytesReceived = 0;
-    rtmpEvents.emit('publish', { streamPath });
+    state.hlsUrl = url;
+    rtmpEvents.emit('publish', { streamPath, hlsUrl: url });
   });
 
   nms.on('donePublish', (_id: string, streamPath: string, _args: any) => {
@@ -93,7 +86,7 @@ export function createRtmpServer(): { nms: any; status: () => RtmpStatus } {
     state.isPublishing = false;
     state.streamPath = '';
     state.startTime = null;
-    state.bytesReceived = 0;
+    state.hlsUrl = '';
     rtmpEvents.emit('unpublish', { streamPath });
   });
 

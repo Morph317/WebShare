@@ -6,6 +6,7 @@ export function useRtmpPlayback() {
   let hls: Hls | null = null;
   let videoEl: HTMLVideoElement | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let currentUrl = '';
 
   function attach(video: HTMLVideoElement): void {
     videoEl = video;
@@ -14,8 +15,8 @@ export function useRtmpPlayback() {
       try {
         const resp = await fetch('/api/rtmp-status');
         const status = await resp.json();
-        if (status.isPublishing && !isLive.value) {
-          startHls();
+        if (status.isPublishing && status.hlsUrl && !isLive.value) {
+          startHls(status.hlsUrl);
         } else if (!status.isPublishing && isLive.value) {
           stopHls();
         }
@@ -23,19 +24,22 @@ export function useRtmpPlayback() {
     }, 2000);
   }
 
-  function startHls(): void {
+  function startHls(url: string): void {
     if (!videoEl) return;
+    if (url === currentUrl && isLive.value) return;
+    currentUrl = url;
+
     if (Hls.isSupported()) {
       hls = new Hls({ liveDurationInfinity: true, lowLatencyMode: false });
-      hls.loadSource('/hls/live/default/index.m3u8');
+      hls.loadSource(url);
       hls.attachMedia(videoEl);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         videoEl?.play().catch(() => {});
       });
       isLive.value = true;
-      console.log('[rtmp] HLS playback started');
+      console.log('[rtmp] HLS playback started:', url);
     } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-      videoEl.src = '/hls/live/default/index.m3u8';
+      videoEl.src = url;
       isLive.value = true;
     }
   }
@@ -49,6 +53,7 @@ export function useRtmpPlayback() {
       videoEl.src = '';
       videoEl.srcObject = null;
     }
+    currentUrl = '';
     isLive.value = false;
     console.log('[rtmp] HLS playback stopped');
   }
