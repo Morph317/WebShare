@@ -272,6 +272,11 @@ export function useWebGLFilter() {
   function render(now: number, _md: VideoFrameCallbackMetadata): void {
     if (!gl || !program || !videoEl || !canvasEl) return;
 
+    if (videoEl.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA || videoEl.ended) {
+      videoCbId = videoEl.requestVideoFrameCallback(render);
+      return;
+    }
+
     const vw = videoEl.videoWidth;
     const vh = videoEl.videoHeight;
     if (vw === 0 || vh === 0) {
@@ -297,9 +302,15 @@ export function useWebGLFilter() {
     }
 
     // Bind video texture to unit 0
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, videoTexture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoEl);
+    try {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoEl);
+    } catch {
+      // Video frame not ready or corrupted — skip this frame
+      videoCbId = videoEl.requestVideoFrameCallback(render);
+      return;
+    }
 
     // Bind font texture to unit 1
     if (fontTexture && uFontLoc) {

@@ -46,6 +46,10 @@ export const config = {
             'x-google-min-bitrate': 1000,
           },
         },
+        // No RTX codecs: prevents NACK-based retransmission storms.
+        // On 1-vCPU instances, RTX retransmission overhead can overwhelm
+        // the worker causing 90%+ packet loss. Without RTX, lost packets
+        // are simply dropped (minor artifacts, no storm).
       ],
     },
 
