@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "flv.js": "^1.6.2",
     "hls.js": "^1.6.16",
     "mediasoup-client": "^3.7.0",
     "vue": "^3.5.0"

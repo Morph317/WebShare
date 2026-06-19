@@ -1,9 +1,9 @@
 import { ref, onUnmounted } from 'vue';
-import Hls from 'hls.js';
+import flvjs from 'flv.js';
 
 export function useRtmpPlayback() {
   const isLive = ref(false);
-  let hls: Hls | null = null;
+  let player: flvjs.Player | null = null;
   let videoEl: HTMLVideoElement | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let currentUrl = '';
@@ -15,39 +15,42 @@ export function useRtmpPlayback() {
       try {
         const resp = await fetch('/api/rtmp-status');
         const status = await resp.json();
-        if (status.isPublishing && status.hlsUrl && !isLive.value) {
-          startHls(status.hlsUrl);
+        if (status.isPublishing && status.flvUrl && !isLive.value) {
+          startFlv(status.flvUrl);
         } else if (!status.isPublishing && isLive.value) {
-          stopHls();
+          stopFlv();
         }
       } catch {}
     }, 2000);
   }
 
-  function startHls(url: string): void {
+  function startFlv(url: string): void {
     if (!videoEl) return;
     if (url === currentUrl && isLive.value) return;
     currentUrl = url;
 
-    if (Hls.isSupported()) {
-      hls = new Hls({ liveDurationInfinity: true, lowLatencyMode: false });
-      hls.loadSource(url);
-      hls.attachMedia(videoEl);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        videoEl?.play().catch(() => {});
+    if (flvjs.isSupported()) {
+      player = flvjs.createPlayer({
+        type: 'flv',
+        url,
+        isLive: true,
       });
+      player.attachMediaElement(videoEl);
+      player.load();
+      player.play();
       isLive.value = true;
-      console.log('[rtmp] HLS playback started:', url);
-    } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-      videoEl.src = url;
-      isLive.value = true;
+      console.log('[rtmp] FLV playback started:', url);
+    } else {
+      console.warn('[rtmp] flv.js not supported');
     }
   }
 
-  function stopHls(): void {
-    if (hls) {
-      hls.destroy();
-      hls = null;
+  function stopFlv(): void {
+    if (player) {
+      player.unload();
+      player.detachMediaElement();
+      player.destroy();
+      player = null;
     }
     if (videoEl) {
       videoEl.src = '';
@@ -55,12 +58,12 @@ export function useRtmpPlayback() {
     }
     currentUrl = '';
     isLive.value = false;
-    console.log('[rtmp] HLS playback stopped');
+    console.log('[rtmp] FLV playback stopped');
   }
 
   function detach(): void {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-    stopHls();
+    stopFlv();
     videoEl = null;
   }
 
