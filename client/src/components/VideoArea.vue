@@ -269,10 +269,8 @@ onMounted(() => {
   document.addEventListener('mozfullscreenchange', onFullscreenChange);
 });
 
-// Attach RTMP HLS playback when video element is ready
-watch(rtmpVideoRef, (el) => {
-  if (el) rtmp.attach(el);
-});
+// Setup RTMP FLV playback — composable internally watches rtmpVideoRef
+rtmp.setup(rtmpVideoRef);
 
 onUnmounted(() => {
   rtmp.detach();

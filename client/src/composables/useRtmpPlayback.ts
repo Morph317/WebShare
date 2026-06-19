@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, watch, type Ref } from 'vue';
 import flvjs from 'flv.js';
 
 export function useRtmpPlayback() {
@@ -6,17 +6,28 @@ export function useRtmpPlayback() {
   let player: flvjs.Player | null = null;
   let videoEl: HTMLVideoElement | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
-  let currentUrl = '';
+  let pendingUrl = '';
 
-  function attach(video: HTMLVideoElement): void {
-    videoEl = video;
+  function setup(videoRef: Ref<HTMLVideoElement | null>): void {
+    // Watch for video element becoming available in DOM
+    watch(videoRef, (el) => {
+      if (el && el !== videoEl) {
+        videoEl = el;
+        startPolling();
+      }
+    }, { immediate: true });
+  }
 
+  function startPolling(): void {
+    if (pollTimer) return;
     pollTimer = setInterval(async () => {
       try {
         const resp = await fetch('/api/rtmp-status');
         const status = await resp.json();
-        if (status.isPublishing && status.flvUrl && !isLive.value) {
-          startFlv(status.flvUrl);
+        if (status.isPublishing && status.flvUrl) {
+          if (!isLive.value) {
+            startFlv(status.flvUrl);
+          }
         } else if (!status.isPublishing && isLive.value) {
           stopFlv();
         }
@@ -25,9 +36,18 @@ export function useRtmpPlayback() {
   }
 
   function startFlv(url: string): void {
-    if (!videoEl) return;
-    if (url === currentUrl && isLive.value) return;
-    currentUrl = url;
+    if (!videoEl) {
+      // Video element not yet in DOM — signal loading and retry on next poll
+      console.log('[rtmp] waiting for video element...');
+      return;
+    }
+    if (player) {
+      // Already playing same URL
+      if (url === pendingUrl) return;
+      stopFlv();
+    }
+
+    pendingUrl = url;
 
     if (flvjs.isSupported()) {
       player = flvjs.createPlayer({
@@ -47,16 +67,16 @@ export function useRtmpPlayback() {
 
   function stopFlv(): void {
     if (player) {
-      player.unload();
-      player.detachMediaElement();
-      player.destroy();
+      try { player.unload(); } catch {}
+      try { player.detachMediaElement(); } catch {}
+      try { player.destroy(); } catch {}
       player = null;
     }
     if (videoEl) {
       videoEl.src = '';
       videoEl.srcObject = null;
     }
-    currentUrl = '';
+    pendingUrl = '';
     isLive.value = false;
     console.log('[rtmp] FLV playback stopped');
   }
@@ -69,5 +89,5 @@ export function useRtmpPlayback() {
 
   onUnmounted(detach);
 
-  return { isLive, attach, detach };
+  return { isLive, setup, detach };
 }
