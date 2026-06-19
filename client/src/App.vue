@@ -167,7 +167,13 @@ watch(
     for (const producer of producers.value) {
       if (!remoteStreams.value.has(producer.producerId)) {
         consumeProducer(producer.producerId).catch((err) => {
-          console.error('Failed to consume producer:', err);
+          console.error('Failed to consume producer:', producer.producerId, err);
+          // Producer gone — remove from tracking so we don't retry infinitely
+          if (signaling.producers.value.some(p => p.producerId === producer.producerId)) {
+            signaling.producers.value = signaling.producers.value.filter(
+              p => p.producerId !== producer.producerId
+            );
+          }
         });
       }
     }

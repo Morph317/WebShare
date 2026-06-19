@@ -237,7 +237,13 @@ export function useMediasoup(signaling: ReturnType<typeof useSignaling>) {
         rtpCapabilities: plainRtpCaps,
       });
 
-      const resp = await signaling.waitFor('consumer-created');
+      // Race consumer-created against error with 3s timeout
+      const resp = await Promise.race([
+        signaling.waitFor('consumer-created', 3000),
+        signaling.waitFor('error', 3000).then((err) => {
+          throw new Error(`Server rejected consume: ${err.message || 'producer gone'}`);
+        }),
+      ]);
       console.log('[consumeProducer] consumer created:', resp);
 
       const consumer = await transport.consume({
