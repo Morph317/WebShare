@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -530,6 +531,23 @@ async function main(): Promise<void> {
     });
   });
 
+  app.get('/api/memory', (_req, res) => {
+    const nodeMem = process.memoryUsage();
+    const sysTotal = os.totalmem();
+    const sysFree = os.freemem();
+    const sysUsed = sysTotal - sysFree;
+    let workerMem = 0;
+    try {
+      const result = execSync('ps -o rss= -p $(pgrep -f mediasoup-worker | head -1) 2>/dev/null || true', { encoding: 'utf8', timeout: 3000 }).trim();
+      if (result) workerMem = parseInt(result, 10) * 1024;
+    } catch {}
+    res.json({
+      node: { heapUsedMB: (nodeMem.heapUsed / 1024 / 1024).toFixed(1), heapTotalMB: (nodeMem.heapTotal / 1024 / 1024).toFixed(1), rssMB: (nodeMem.rss / 1024 / 1024).toFixed(1) },
+      system: { totalMB: (sysTotal / 1024 / 1024).toFixed(1), usedMB: (sysUsed / 1024 / 1024).toFixed(1), freeMB: (sysFree / 1024 / 1024).toFixed(1), usagePct: (sysUsed / sysTotal * 100).toFixed(1) },
+      workerRssMB: (workerMem / 1024 / 1024).toFixed(1),
+    });
+  });
+
   app.get('/api/logs', (req, res) => {
     const tail = parseInt(req.query.tail as string) || 0;
     const content = getLogContent(tail || undefined);
@@ -666,8 +684,10 @@ async function main(): Promise<void> {
       totalProducers += peer.producers.size;
       totalConsumers += peer.consumers.size;
     }
-    console.log(`[status @${Math.round(process.uptime())}s] rooms=${rooms.size} peers=${peerMap.size} transports=${transportMap.size} producers=${totalProducers} consumers=${totalConsumers} pending=${pendingRequestCount}`);
-  }, 60000);
+    const rss = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
+    const free = (os.freemem() / 1024 / 1024).toFixed(1);
+    console.log(`[status @${Math.round(process.uptime())}s] rooms=${rooms.size} peers=${peerMap.size} transports=${transportMap.size} producers=${totalProducers} consumers=${totalConsumers} pending=${pendingRequestCount} nodeRss=${rss}MB sysFree=${free}MB`);
+  }, 30000);
 }
 
 main().catch((err) => {
