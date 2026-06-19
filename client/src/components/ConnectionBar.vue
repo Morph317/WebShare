@@ -6,8 +6,8 @@
     </div>
     <div class="connection-info" v-if="state === 'connected'">
       <span class="room-badge">{{ roomId }}</span>
-      <button class="btn btn-copy-whip" @click="copyStreamUrl" :title="streamUrl">
-        {{ copied ? '已复制!' : '复制推流地址' }}
+      <button class="btn btn-copy-whip" @click="copyStreamUrl" :title="'RTMP: ' + rtmpUrl + ' | WHIP: ' + whipUrl">
+        {{ copied ? '已复制!' : '复制 RTMP 地址' }}
       </button>
       <div class="spacer"></div>
       <div class="settings-wrapper">
@@ -62,10 +62,17 @@ watch(() => props.displayName, (val) => {
   editName.value = val;
 });
 
-const streamUrl = computed(() => {
+const rtmpUrl = computed(() => {
   const host = window.location.hostname;
-  return `rtmp://${host}:1935/live/default`;
+  return `rtmp://${host}:1935/live (密钥: default)`;
 });
+
+const whipUrl = computed(() => {
+  const host = window.location.hostname;
+  return `http://${host}:8080/api/whip?roomId=${props.roomId}`;
+});
+
+const streamUrl = computed(() => rtmpUrl.value);
 
 async function copyStreamUrl(): Promise<void> {
   try {

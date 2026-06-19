@@ -1,5 +1,6 @@
 <template>
   <div class="video-area">
+    <ObsGuide v-if="showObsGuide" @close="showObsGuide = false" />
     <div class="toolbar">
       <div class="share-section">
         <button
@@ -16,6 +17,9 @@
           @click="$emit('stopShare')"
         >
           停止共享
+        </button>
+        <button class="btn btn-obs" @click="showObsGuide = true">
+          OBS 推流
         </button>
       </div>
       <div class="stream-count" v-if="remoteStreams.size > 0">
@@ -86,6 +90,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { RemoteStream, PeerInfo } from '../types';
 import { useWebGLFilter, DEFAULT_FILTER } from '../composables/useWebGLFilter';
 import { useRtmpPlayback } from '../composables/useRtmpPlayback';
+import ObsGuide from './ObsGuide.vue';
 
 const props = defineProps<{
   remoteStreams: Map<string, RemoteStream>;
@@ -111,6 +116,7 @@ const rtmpVideoRef = ref<HTMLVideoElement | null>(null);
 const filterOverlayRef = ref<HTMLDivElement | null>(null);
 const videoRefs: Map<string, HTMLVideoElement> = new Map();
 const isFullscreen = ref(false);
+const showObsGuide = ref(false);
 const filterCanvasEl = ref<HTMLCanvasElement | null>(null);
 
 const rtmp = useRtmpPlayback();
@@ -321,6 +327,14 @@ onUnmounted(() => {
 }
 .btn-stop:hover {
   background: rgba(244, 67, 54, 0.35);
+}
+.btn-obs {
+  background: rgba(79, 195, 247, 0.15);
+  color: #4fc3f7;
+  margin-left: 8px;
+}
+.btn-obs:hover {
+  background: rgba(79, 195, 247, 0.3);
 }
 .stream-count {
   font-size: 12px;
