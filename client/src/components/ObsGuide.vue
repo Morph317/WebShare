@@ -18,8 +18,8 @@
           <div class="step-body">
             <strong>打开 OBS 设置 → 推流</strong>
             <p>服务：自定义</p>
-            <p>服务器：<code class="url-box">{{ rtmpServer }}</code></p>
-            <p>串流密钥：<code class="url-box">default</code></p>
+            <p>服务器：<code class="url-box" @click="copyText(rtmpServer)" :title="copied === rtmpServer ? '已复制!' : '点击复制'">{{ rtmpServer }}</code></p>
+            <p>串流密钥：<code class="url-box" @click="copyText('default')" :title="copied === 'default' ? '已复制!' : '点击复制'">default</code></p>
           </div>
         </div>
         <div class="step">
@@ -61,7 +61,7 @@
           <div class="step-body">
             <strong>打开 OBS 设置 → 推流</strong>
             <p>服务：WHIP</p>
-            <p>WHIP 服务器 URL：<code class="url-box">{{ whipUrl }}</code></p>
+            <p>WHIP 服务器 URL：<code class="url-box" @click="copyText(whipUrl)" :title="copied === whipUrl ? '已复制!' : '点击复制'">{{ whipUrl }}</code></p>
             <p>不填 Bearer Token</p>
           </div>
         </div>
@@ -104,9 +104,27 @@ import { ref } from 'vue';
 defineEmits<{ close: [] }>();
 
 const tab = ref<'rtmp' | 'whip'>('rtmp');
+const copied = ref('');
 const host = window.location.hostname;
 const rtmpServer = `rtmp://${host}:1935/live`;
 const whipUrl = `http://${host}:8080/api/whip?roomId=default`;
+
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+  copied.value = text;
+  setTimeout(() => { copied.value = ''; }, 1500);
+}
 </script>
 
 <style scoped>
@@ -197,6 +215,11 @@ const whipUrl = `http://${host}:8080/api/whip?roomId=default`;
   border-radius: 4px;
   font-size: 12px;
   word-break: break-all;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.url-box:hover {
+  background: #2a2a4e;
 }
 .note {
   background: #2a2a3e;

@@ -6,9 +6,6 @@
     </div>
     <div class="connection-info" v-if="state === 'connected'">
       <span class="room-badge">{{ roomId }}</span>
-      <button class="btn btn-copy-whip" @click="copyStreamUrl" :title="'RTMP: ' + rtmpUrl + ' | WHIP: ' + whipUrl">
-        {{ copied ? '已复制!' : '复制 RTMP 地址' }}
-      </button>
       <div class="spacer"></div>
       <div class="settings-wrapper">
         <button class="btn btn-settings" @click="showSettings = !showSettings" title="设置">
@@ -38,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{
   state: 'disconnected' | 'connecting' | 'connected';
@@ -54,45 +51,8 @@ const emit = defineEmits<{
   'toggle-filter-editor': [];
 }>();
 
-const copied = ref(false);
 const showSettings = ref(false);
 const editName = ref(props.displayName);
-
-watch(() => props.displayName, (val) => {
-  editName.value = val;
-});
-
-const rtmpUrl = computed(() => {
-  const host = window.location.hostname;
-  return `rtmp://${host}:1935/live (密钥: default)`;
-});
-
-const whipUrl = computed(() => {
-  const host = window.location.hostname;
-  return `http://${host}:8080/api/whip?roomId=${props.roomId}`;
-});
-
-const streamUrl = computed(() => rtmpUrl.value);
-
-async function copyStreamUrl(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(streamUrl.value);
-    copied.value = true;
-    setTimeout(() => { copied.value = false; }, 2000);
-  } catch {
-    // Fallback for non-HTTPS
-    const ta = document.createElement('textarea');
-    ta.value = streamUrl.value;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    copied.value = true;
-    setTimeout(() => { copied.value = false; }, 2000);
-  }
-}
 
 function saveDisplayName(): void {
   const name = editName.value.trim();
@@ -201,14 +161,6 @@ input::placeholder {
 }
 .btn-connect:hover:not(:disabled) {
   background: #651fff;
-}
-.btn-copy-whip {
-  background: rgba(76, 175, 80, 0.2);
-  color: #81c784;
-  font-size: 12px;
-}
-.btn-copy-whip:hover {
-  background: rgba(76, 175, 80, 0.35);
 }
 .room-badge {
   font-size: 12px;
