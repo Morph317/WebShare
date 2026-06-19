@@ -599,8 +599,14 @@ async function main(): Promise<void> {
     console.log('[deploy] Running git pull...');
     execSync('git pull', { cwd: projectRoot, stdio: 'inherit', timeout: 30000 });
 
+    console.log('[deploy] Installing server dependencies...');
+    execSync('npm install', { cwd: path.join(projectRoot, 'server'), stdio: 'inherit', timeout: 60000 });
+
     console.log('[deploy] Building server...');
     execSync('npm run build', { cwd: path.join(projectRoot, 'server'), stdio: 'inherit', timeout: 60000 });
+
+    console.log('[deploy] Installing client dependencies...');
+    execSync('npm install', { cwd: path.join(projectRoot, 'client'), stdio: 'inherit', timeout: 60000 });
 
     console.log('[deploy] Building client...');
     execSync('npm run build', { cwd: path.join(projectRoot, 'client'), stdio: 'inherit', timeout: 60000 });
