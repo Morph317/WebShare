@@ -43,7 +43,7 @@ export function createRtmpServer(): { nms: any; status: () => RtmpStatus } {
       ffmpeg: '/usr/bin/ffmpeg',
       tasks: [
         {
-          app: 'live',
+          app: 'live',  // matches /live, /live/xxx etc.
           hls: true,
           hlsFlags: '[hls_time=2:hls_list_size=10:hls_flags=delete_segments+append_list+omit_endlist]',
           hlsKeep: false,
@@ -65,9 +65,14 @@ export function createRtmpServer(): { nms: any; status: () => RtmpStatus } {
   });
 
   nms.on('prePublish', (_id: string, streamPath: string, _args: any) => {
-    console.log(`[rtmp] prePublish: ${streamPath}`);
-    // Allow any stream key under /live/
-    if (!streamPath.startsWith('/live/')) {
+    console.log(`[rtmp] prePublish: path="${streamPath}"`);
+    if (!streamPath) {
+      const session = (nms as any).getSession(_id);
+      if (session) session.reject();
+      return;
+    }
+    // Accept /live or /live/something
+    if (!streamPath.startsWith('/live')) {
       const session = (nms as any).getSession(_id);
       if (session) session.reject();
       return;
