@@ -10,6 +10,7 @@ import * as mediasoup from 'mediasoup';
 import { config } from './config';
 import { Peer, Room } from './Room';
 import { createWhipHandler, createTrickleHandler } from './Whip';
+import { createRtmpServer } from './RtmpServer';
 
 const LOG_DIR = path.join(__dirname, '..', 'logs');
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
@@ -476,6 +477,11 @@ async function main(): Promise<void> {
 
   console.log(`mediasoup worker started (ports ${config.mediasoup.worker.rtcMinPort}-${config.mediasoup.worker.rtcMaxPort})`);
 
+  // RTMP server for OBS ingestion (alternative to WHIP)
+  const rtmpServer = createRtmpServer();
+  rtmpServer.nms.run();
+  console.log('RTMP server started on port 1935, HLS on port 8000');
+
   const app = express();
 
   // WHIP endpoint — raw SDP body, before static middleware
@@ -554,6 +560,10 @@ async function main(): Promise<void> {
     res.type('text/plain').send(content);
   });
 
+  app.get('/api/rtmp-status', (_req, res) => {
+    res.json(rtmpServer.status());
+  });
+
   app.post('/api/deploy', (req, res) => {
     const token = (req.query.token as string) || '';
     const deployToken = process.env.DEPLOY_TOKEN;
@@ -624,6 +634,9 @@ async function main(): Promise<void> {
   }
 
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
+  // HLS files from RTMP server — served under /hls/
+  const hlsDir = path.join(__dirname, '..', 'public', 'hls');
+  app.use('/hls', express.static(hlsDir));
   app.use(express.static(clientDist));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'));

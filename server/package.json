@@ -12,6 +12,7 @@
     "express": "^4.21.0",
     "mediasoup": "^3.14.0",
     "mediasoup-client": "^3.20.0",
+    "node-media-server": "^4.2.8",
     "sdp-transform": "^3.0.0",
     "ws": "^8.18.0"
   },

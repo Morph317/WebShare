@@ -45,11 +45,20 @@
 
     <!-- Main video -->
     <div class="main-video-wrapper">
-      <div v-if="activeStream" class="main-video-container">
+      <div v-if="rtmpLive || activeStream" class="main-video-container">
         <video
+          v-show="!rtmpLive"
           ref="mainVideoRef"
           autoplay
           playsinline
+          class="main-video"
+        ></video>
+        <video
+          v-show="rtmpLive"
+          ref="rtmpVideoRef"
+          autoplay
+          playsinline
+          muted
           class="main-video"
         ></video>
         <div class="video-overlay">
@@ -57,8 +66,11 @@
             {{ isFullscreen ? '⛶' : '⛶' }}
           </button>
         </div>
-        <div class="main-video-label">
+        <div class="main-video-label" v-if="activeStream">
           {{ getPeerName(activeStream.peerId) }}
+        </div>
+        <div class="main-video-label" v-else-if="rtmpLive">
+          OBS 推流中
         </div>
       </div>
       <div v-else class="no-stream">
@@ -74,6 +86,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { RemoteStream, PeerInfo } from '../types';
 import { useWebGLFilter, DEFAULT_FILTER } from '../composables/useWebGLFilter';
+import { useRtmpPlayback } from '../composables/useRtmpPlayback';
 
 const props = defineProps<{
   remoteStreams: Map<string, RemoteStream>;
@@ -95,10 +108,14 @@ const emit = defineEmits<{
 }>();
 
 const mainVideoRef = ref<HTMLVideoElement | null>(null);
+const rtmpVideoRef = ref<HTMLVideoElement | null>(null);
 const filterOverlayRef = ref<HTMLDivElement | null>(null);
 const videoRefs: Map<string, HTMLVideoElement> = new Map();
 const isFullscreen = ref(false);
 const filterCanvasEl = ref<HTMLCanvasElement | null>(null);
+
+const rtmp = useRtmpPlayback();
+const rtmpLive = computed(() => rtmp.isLive.value);
 
 const filter = useWebGLFilter();
 
@@ -252,7 +269,13 @@ onMounted(() => {
   document.addEventListener('mozfullscreenchange', onFullscreenChange);
 });
 
+// Attach RTMP HLS playback when video element is ready
+watch(rtmpVideoRef, (el) => {
+  if (el) rtmp.attach(el);
+});
+
 onUnmounted(() => {
+  rtmp.detach();
   document.removeEventListener('fullscreenchange', onFullscreenChange);
   document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
   document.removeEventListener('mozfullscreenchange', onFullscreenChange);
