@@ -10,7 +10,7 @@ import * as mediasoup from 'mediasoup';
 import { config } from './config';
 import { Peer, Room } from './Room';
 import { createWhipHandler, createTrickleHandler } from './Whip';
-import { createRtmpServer } from './RtmpServer';
+import { createRtmpServer, rtmpEvents } from './RtmpServer';
 
 const LOG_DIR = path.join(__dirname, '..', 'logs');
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
@@ -480,7 +480,40 @@ async function main(): Promise<void> {
   // RTMP server for OBS ingestion (alternative to WHIP)
   const rtmpServer = createRtmpServer();
   rtmpServer.nms.run();
-  console.log('RTMP server started on port 1935, HLS on port 8000');
+  console.log('RTMP server started on port 1935, FLV on port 8000');
+
+  let obsPeer: Peer | null = null;
+
+  rtmpEvents.on('publish', async () => {
+    const room = await initRoom('default');
+    const obsId = `obs_rtmp`;
+    // Remove old OBS peer if still present
+    if (obsPeer) {
+      room.removePeer(obsPeer.id);
+      peerMap.delete(obsPeer.id);
+    }
+    obsPeer = new Peer(obsId, 'OBS', null);
+    room.addPeer(obsPeer);
+    peerMap.set(obsId, obsPeer);
+    room.broadcast(
+      { type: 'peer-joined', peerId: obsId, displayName: 'OBS (RTMP)' },
+      obsId,
+    );
+    console.log('[rtmp] OBS peer created, broadcasting peer-joined');
+  });
+
+  rtmpEvents.on('unpublish', () => {
+    if (obsPeer) {
+      const room = obsPeer.room;
+      if (room) {
+        room.broadcast({ type: 'peer-left', peerId: obsPeer.id }, obsPeer.id);
+        room.removePeer(obsPeer.id);
+      }
+      peerMap.delete(obsPeer.id);
+      obsPeer = null;
+    }
+    console.log('[rtmp] OBS peer removed');
+  });
 
   const app = express();
 

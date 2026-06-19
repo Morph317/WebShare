@@ -54,7 +54,8 @@ export function useRtmpPlayback() {
         type: 'flv',
         url,
         isLive: true,
-      });
+        enableWorker: true,
+      } as any);
       player.attachMediaElement(videoEl);
       player.load();
       player.play();
