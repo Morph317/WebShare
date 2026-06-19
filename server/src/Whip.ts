@@ -218,33 +218,10 @@ export function createWhipHandler(
           candidatesAdded = true;
         }
 
-        // Filter codecs to only what ORTC negotiated
-        const negotiatedCodecs: any[] = sendingRtpParametersByKind[kind].codecs;
-        const negotiatedPayloads = new Set<number>();
-        const keptRtps: any[] = [];
-
-        for (const rtp of (media.rtp || [])) {
-          const matched = negotiatedCodecs.find(
-            (c: any) => rtp.codec.toUpperCase() === c.mimeType.split('/')[1]?.toUpperCase(),
-          );
-          if (matched) {
-            negotiatedPayloads.add(rtp.payload);
-            keptRtps.push(rtp);
-          }
-        }
-        media.rtp = keptRtps;
-
-        // Filter fmtp to kept payloads
-        if (media.fmtp) {
-          media.fmtp = media.fmtp.filter((f: any) => negotiatedPayloads.has(f.payload));
-        }
-
-        // Set payloads string
-        media.payloads = keptRtps.map((r: any) => String(r.payload)).join(' ');
-
-        // Filter RTCP-FB to kept payloads
-        if (media.rtcpFb) {
-          media.rtcpFb = media.rtcpFb.filter((fb: any) => negotiatedPayloads.has(fb.payload));
+        // Keep ALL codecs and fmtp from offer — don't filter.
+        // Filtering can remove parameters OBS relies on for encoder init.
+        if (media.rtp && media.rtp.length > 0) {
+          media.payloads = media.rtp.map((r: any) => String(r.payload)).join(' ');
         }
       }
 
