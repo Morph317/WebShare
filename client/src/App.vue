@@ -82,7 +82,7 @@ const {
 
 const connectedRoomId = ref('');
 const displayName = ref(localStorage.getItem('displayName') || getDeviceName());
-const filterEnabled = ref(localStorage.getItem('filterEnabled') === 'true');
+const filterEnabled = ref(false); // WebGL filter temporarily disabled
 const filterSource = ref(localStorage.getItem('filterSource') || DEFAULT_FILTER);
 const filterError = ref('');
 const filterEditorVisible = ref(false);

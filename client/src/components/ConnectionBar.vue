@@ -30,19 +30,7 @@
             <button class="btn btn-cancel" @click="cancelEdit">取消</button>
           </div>
           <div class="settings-divider"></div>
-          <label class="settings-toggle" @click="$emit('toggle-filter')">
-            <span class="toggle-label">WebGL 滤镜</span>
-            <span class="toggle-switch" :class="{ on: filterEnabled }">
-              <span class="toggle-knob"></span>
-            </span>
-          </label>
-          <button
-            v-if="filterEnabled"
-            class="btn btn-edit-filter"
-            @click="$emit('toggle-filter-editor')"
-          >
-            {{ filterEditorVisible ? '隐藏代码' : '编辑代码' }}
-          </button>
+          <!-- WebGL filter temporarily disabled -->
         </div>
       </div>
     </div>

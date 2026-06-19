@@ -51,9 +51,7 @@
           autoplay
           playsinline
           class="main-video"
-          :style="{ opacity: filterCanvasEl ? '0' : '1' }"
         ></video>
-        <div ref="filterOverlayRef" class="filter-overlay" v-show="filterCanvasEl"></div>
         <div class="video-overlay">
           <button class="btn-fullscreen" @click="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '全屏'">
             {{ isFullscreen ? '⛶' : '⛶' }}
@@ -62,14 +60,6 @@
         <div class="main-video-label">
           {{ getPeerName(activeStream.peerId) }}
         </div>
-        <button
-          v-if="filterEnabled && !filterEditorVisible"
-          class="btn-edit-filter"
-          @click="$emit('open-filter-editor')"
-          title="编辑滤镜"
-        >
-          编辑滤镜
-        </button>
       </div>
       <div v-else class="no-stream">
         <div class="no-stream-icon">📺</div>
