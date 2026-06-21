@@ -176,11 +176,9 @@ onUnmounted(() => {
   opacity: 0;
   transition: opacity 0.3s;
   z-index: 20;
-  pointer-events: none;
 }
 .video-controls.visible {
   opacity: 1;
-  pointer-events: auto;
 }
 .controls-bar {
   display: flex;
