@@ -597,6 +597,25 @@ async function main(): Promise<void> {
     res.json(rtmpServer.status());
   });
 
+  app.post('/api/restart', (req, res) => {
+    const token = (req.query.token as string) || '';
+    const deployToken = process.env.DEPLOY_TOKEN;
+    if (!deployToken || token !== deployToken) {
+      res.status(403).json({ error: 'Invalid deploy token' });
+      return;
+    }
+
+    res.json({ status: 'restarting' });
+
+    setImmediate(() => {
+      try {
+        restartServer('restart');
+      } catch (err) {
+        console.error('[restart] Failed:', err);
+      }
+    });
+  });
+
   app.post('/api/deploy', (req, res) => {
     const token = (req.query.token as string) || '';
     const deployToken = process.env.DEPLOY_TOKEN;
@@ -644,15 +663,21 @@ async function main(): Promise<void> {
     console.log('[deploy] Building client...');
     execSync('npm run build', { cwd: path.join(projectRoot, 'client'), stdio: 'inherit', timeout: 60000 });
 
-    console.log('[deploy] Closing HTTP server to release port...');
+    console.log('[deploy] Restarting server process...');
+    restartServer('deploy');
+  }
+
+  function restartServer(reason: string): void {
+    console.log(`[${reason}] Closing HTTP server to release port...`);
     server.close();
 
-    console.log('[deploy] Closing mediasoup worker...');
+    console.log(`[${reason}] Closing mediasoup worker...`);
     if (worker && !worker.closed) {
       worker.close();
     }
 
-    console.log('[deploy] Spawning new server process...');
+    console.log(`[${reason}] Spawning new server process...`);
+    const projectRoot = path.resolve(__dirname, '..', '..');
     const deployLog = path.join(projectRoot, 'server', 'logs', 'deploy.log');
     const logDir = path.dirname(deployLog);
     if (!fs.existsSync(logDir)) {
@@ -668,7 +693,7 @@ async function main(): Promise<void> {
     child.unref();
     fs.closeSync(outFd);
 
-    console.log('[deploy] New process spawned, exiting...');
+    console.log(`[${reason}] New process spawned, exiting...`);
     process.exit(0);
   }
 

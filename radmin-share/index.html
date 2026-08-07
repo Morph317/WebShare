@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radmin P2P 屏幕共享</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d0d1a; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; }
+
+.header { background: #1a1a2e; border-bottom: 1px solid #2a2a4a; padding: 14px 20px; text-align: center; }
+.header h1 { font-size: 18px; color: #7c4dff; font-weight: 600; }
+.header .subtitle { font-size: 12px; color: #666; margin-top: 2px; }
+
+.main { flex: 1; display: flex; flex-direction: column; max-width: 900px; width: 100%; margin: 0 auto; padding: 16px; }
+
+.room-bar { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+.room-bar input { flex: 1; min-width: 140px; padding: 8px 12px; border-radius: 6px; border: 1px solid #333; background: #1a1a2e; color: #e0e0e0; font-size: 14px; outline: none; }
+.room-bar input:focus { border-color: #7c4dff; }
+.room-bar .radmin-hint { font-size: 11px; color: #666; }
+
+.btn { padding: 8px 18px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .2s, opacity .2s; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary { background: #7c4dff; color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #651fff; }
+.btn-danger { background: rgba(244,67,54,.2); color: #f44336; }
+.btn-danger:hover:not(:disabled) { background: rgba(244,67,54,.35); }
+.btn-secondary { background: rgba(255,255,255,.08); color: #ccc; }
+.btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,.15); }
+
+.actions { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+
+.video-section { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+.video-container { position: relative; background: #000; border-radius: 8px; overflow: hidden; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+.video-container video { width: 100%; height: 100%; object-fit: contain; display: block; max-height: 500px; }
+.video-container .placeholder { text-align: center; color: #444; padding: 40px; }
+.video-container .placeholder .icon { font-size: 40px; margin-bottom: 8px; }
+.video-container .placeholder .text { font-size: 14px; }
+.video-container .server-status { position: absolute; top: 8px; left: 8px; font-size: 11px; padding: 4px 10px; border-radius: 4px; background: rgba(0,0,0,.7); }
+
+.status-badge { position: absolute; top: 8px; right: 8px; font-size: 11px; padding: 3px 8px; border-radius: 4px; }
+.status-badge.connecting { background: rgba(255,193,7,.2); color: #ffc107; }
+.status-badge.connected { background: rgba(76,175,80,.2); color: #81c784; }
+.status-badge.disconnected { background: rgba(244,67,54,.2); color: #f44336; }
+
+.shared-stream { display: none; }
+.shared-stream.active { display: flex; }
+
+.local-preview { width: 160px; height: 90px; border-radius: 6px; overflow: hidden; position: relative; background: #000; flex-shrink: 0; }
+.local-preview video { width: 100%; height: 100%; object-fit: cover; }
+.local-preview .label { position: absolute; bottom: 0; left: 0; right: 0; padding: 2px 6px; background: rgba(0,0,0,.7); font-size: 10px; color: #aaa; }
+
+.viewer-list { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.server-info { font-size: 11px; color: #555; text-align: center; padding: 8px; border-top: 1px solid #1a1a2e; margin-top: auto; }
+.server-info code { color: #7c4dff; }
+
+.ice-info { font-size: 11px; color: #555; padding: 4px 0; }
+.ice-info .good { color: #81c784; }
+.ice-info .bad { color: #f44336; }
+
+@media (max-width: 600px) {
+  .main { padding: 10px; }
+  .room-bar { flex-direction: column; align-items: stretch; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Radmin P2P 屏幕共享</h1>
+  <div class="subtitle">基于 WebRTC 的点对点屏幕共享 · 无需服务器中转</div>
+</div>
+
+<div class="main">
+  <div class="room-bar">
+    <input id="roomInput" placeholder="房间名称（如 work）" value="default" />
+    <span class="radmin-hint">相同房间的成员将建立 P2P 连接</span>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="shareBtn" onclick="startShare()">📺 共享屏幕</button>
+    <button class="btn btn-secondary" id="watchBtn" onclick="startWatch()">👁 观看共享</button>
+    <button class="btn btn-danger" id="stopBtn" onclick="stopAll()" disabled>⏹ 停止</button>
+  </div>
+
+  <div class="video-section">
+    <div class="video-container" id="remoteContainer">
+      <div class="placeholder" id="placeholder">
+        <div class="icon">🖥</div>
+        <div class="text">等待连接...</div>
+      </div>
+      <video id="remoteVideo" autoplay playsinline style="display:none"></video>
+      <div class="status-badge" id="statusBadge" style="display:none"></div>
+    </div>
+
+    <div class="local-preview" id="localPreview" style="display:none">
+      <video id="localVideo" muted autoplay playsinline></video>
+      <div class="label">本地预览</div>
+    </div>
+
+    <div class="ice-info" id="iceInfo"></div>
+  </div>
+
+  <div class="server-info">
+    信令服务器: <code id="serverUrl">-</code>
+    · Radmin VPN 需在同一虚拟局域网内
+  </div>
+</div>
+
+<script>
+const ROOM = document.getElementById('roomInput');
+const SHARE_BTN = document.getElementById('shareBtn');
+const WATCH_BTN = document.getElementById('watchBtn');
+const STOP_BTN = document.getElementById('stopBtn');
+const REMOTE_VIDEO = document.getElementById('remoteVideo');
+const PLACEHOLDER = document.getElementById('placeholder');
+const LOCAL_VIDEO = document.getElementById('localVideo');
+const LOCAL_PREVIEW = document.getElementById('localPreview');
+const STATUS_BADGE = document.getElementById('statusBadge');
+const ICE_INFO = document.getElementById('iceInfo');
+const SERVER_URL = document.getElementById('serverUrl');
+
+const BASE = window.location.origin;
+SERVER_URL.textContent = BASE;
+
+let pc = null;
+let localStream = null;
+let pollTimers = [];
+let iceCount = 0;
+let mode = null; // 'share' | 'watch'
+
+function roomId() { return ROOM.value.trim() || 'default'; }
+
+function setStatus(text, type) {
+  STATUS_BADGE.style.display = 'inline-block';
+  STATUS_BADGE.textContent = text;
+  STATUS_BADGE.className = 'status-badge ' + type;
+}
+
+function hideStatus() {
+  STATUS_BADGE.style.display = 'none';
+}
+
+function logIce(msg) {
+  ICE_INFO.textContent = msg;
+}
+
+function clearPolls() {
+  for (const t of pollTimers) clearTimeout(t);
+  pollTimers = [];
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(BASE + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  return res.json();
+}
+
+// --- ICE Candidate exchange ---
+let lastIceIdx = 0;
+
+async function postIce(candidate) {
+  try {
+    await api('/api/ice', {
+      method: 'POST',
+      body: JSON.stringify({ room: roomId(), candidate }),
+    });
+  } catch {}
+}
+
+async function pollIce() {
+  try {
+    const data = await api(`/api/ice?room=${roomId()}&since=${lastIceIdx}`);
+    if (data.candidates && data.candidates.length > 0) {
+      for (const c of data.candidates) {
+        if (pc && c) {
+          try { pc.addIceCandidate(new RTCSessionDescription({ type: 'candidate', candidate: c })); } catch {}
+        }
+      }
+      lastIceIdx = data.total;
+    }
+  } catch {}
+}
+
+function startIcePoll() {
+  async function loop() {
+    await pollIce();
+    const t = setTimeout(loop, 1000);
+    pollTimers.push(t);
+  }
+  loop();
+}
+
+// --- Share screen ---
+async function startShare() {
+  if (mode) stopAll();
+
+  try {
+    localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  } catch {
+    return;
+  }
+
+  mode = 'share';
+  SHARE_BTN.disabled = true;
+  WATCH_BTN.disabled = true;
+  STOP_BTN.disabled = false;
+
+  // Show local preview
+  LOCAL_VIDEO.srcObject = localStream;
+  LOCAL_PREVIEW.style.display = 'block';
+
+  // Reset server state for this room
+  await api(`/api/reset?room=${roomId()}`, { method: 'POST' });
+  lastIceIdx = 0;
+
+  // Create PeerConnection
+  pc = new RTCPeerConnection({
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  });
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate && e.candidate.candidate) {
+      postIce(e.candidate.candidate);
+    }
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    const s = pc.iceConnectionState;
+    logIce(`ICE: ${s}`);
+    if (s === 'connected' || s === 'completed') {
+      setStatus('已连接', 'connected');
+    } else if (s === 'disconnected' || s === 'failed') {
+      setStatus('连接断开', 'disconnected');
+    }
+  };
+
+  pc.onsignalingstatechange = () => {
+    if (pc.signalingState === 'closed') stopAll();
+  };
+
+  // Add tracks
+  for (const track of localStream.getTracks()) {
+    pc.addTrack(track, localStream);
+  }
+
+  // Create offer
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  // Send offer to server
+  await api('/api/offer', {
+    method: 'POST',
+    body: JSON.stringify({ room: roomId(), sdp: pc.localDescription.sdp }),
+  });
+
+  // Wait for answer (long poll)
+  setStatus('等待接收端连接...', 'connecting');
+  const answerData = await api(`/api/answer?room=${roomId()}`);
+  if (answerData.sdp) {
+    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answerData.sdp }));
+    setStatus('已连接', 'connected');
+  } else {
+    setStatus('超时', 'disconnected');
+  }
+
+  // Start ICE poll for viewer's candidates
+  startIcePoll();
+}
+
+// --- Watch ---
+async function startWatch() {
+  if (mode) stopAll();
+
+  mode = 'watch';
+  SHARE_BTN.disabled = true;
+  WATCH_BTN.disabled = true;
+  STOP_BTN.disabled = false;
+
+  lastIceIdx = 0;
+
+  // Create PC early so ontrack is set before SDP arrives
+  pc = new RTCPeerConnection({
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  });
+
+  pc.ontrack = (e) => {
+    REMOTE_VIDEO.srcObject = e.streams[0];
+    REMOTE_VIDEO.style.display = 'block';
+    PLACEHOLDER.style.display = 'none';
+  };
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate && e.candidate.candidate) {
+      postIce(e.candidate.candidate);
+    }
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    logIce(`ICE: ${pc.iceConnectionState}`);
+    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      setStatus('已连接', 'connected');
+    } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+      setStatus('连接断开', 'disconnected');
+    }
+  };
+
+  // Wait for offer (long poll)
+  setStatus('等待共享端...', 'connecting');
+  const offerData = await api(`/api/offer?room=${roomId()}`);
+  if (!offerData.sdp) {
+    setStatus('超时', 'disconnected');
+    stopAll();
+    return;
+  }
+
+  await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerData.sdp }));
+
+  // Create answer
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+
+  // Send answer
+  await api('/api/answer', {
+    method: 'POST',
+    body: JSON.stringify({ room: roomId(), sdp: pc.localDescription.sdp }),
+  });
+
+  setStatus('已连接', 'connected');
+
+  // Start ICE poll for sharer's candidates
+  startIcePoll();
+}
+
+// --- Stop ---
+function stopAll() {
+  clearPolls();
+  if (pc) {
+    try { pc.close(); } catch {}
+    pc = null;
+  }
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+  }
+  REMOTE_VIDEO.srcObject = null;
+  REMOTE_VIDEO.style.display = 'none';
+  LOCAL_VIDEO.srcObject = null;
+  LOCAL_PREVIEW.style.display = 'none';
+  PLACEHOLDER.style.display = 'block';
+  hideStatus();
+  logIce('');
+  mode = null;
+  SHARE_BTN.disabled = false;
+  WATCH_BTN.disabled = false;
+  STOP_BTN.disabled = true;
+  lastIceIdx = 0;
+}
+
+// Global stop
+document.getElementById('stopBtn').onclick = stopAll;
+
+// Handle stream end (user clicks "Stop sharing" in browser UI)
+navigator.mediaDevices.addEventListener('devicechange', () => {
+  if (mode === 'share' && localStream) {
+    const active = localStream.getVideoTracks().some(t => t.readyState === 'live');
+    if (!active) stopAll();
+  }
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  if (pc) try { pc.close(); } catch {}
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+});
+</script>
+</body>
+</html>
